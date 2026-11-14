@@ -1,0 +1,6 @@
+{
+  "name": "RT 07 GO DIGITAL",
+  "description": "Sistem Informasi Manajemen Warga, Iuran, Buku Kas, dan Database Spreadsheet RT 07 dengan Login Pengurus & Warga",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RT 07 GO DIGITAL</title>
+<style>
+:root{--bg:#f3f6f5;--card:#fff;--tx:#17302b;--mu:#64807a;--bd:#dde7e4;--p:#1e6f5c;--pl:#e2f2ee;--ok:#15803d;--okb:#dcfce7;--wr:#b45309;--wrb:#fef3c7;--er:#b91c1c;--erb:#fee2e2;--in:#1d4ed8;--inb:#dbeafe;--sh:0 2px 10px rgba(20,60,50,.07)}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1917;--card:#15251f;--tx:#e6f1ee;--mu:#8fa8a1;--bd:#25382f;--p:#2a9d84;--pl:#17332c;--ok:#4ade80;--okb:#14351f;--wr:#fbbf24;--wrb:#3a2d0c;--er:#f87171;--erb:#3b1616;--in:#93c5fd;--inb:#172a4a;--sh:none}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+h2{margin:0;font-size:20px}h3{margin:0 0 8px;font-size:16px}p{margin:6px 0}
+button{font:inherit;cursor:pointer}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font:inherit;min-height:42px}
+input:disabled{opacity:.7}
+label{display:block;font-size:13px;font-weight:600;margin:0 0 4px;color:var(--mu)}
+small,.s{font-size:12.5px}.mu{color:var(--mu)}
+.b{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:9px 14px;border-radius:10px;font-weight:600;min-height:40px}
+.b.p{background:var(--p);border-color:var(--p);color:#fff}.b.d{color:var(--er);border-color:var(--er)}.b.g{background:transparent}
+.b.s{padding:4px 10px;min-height:32px;font-size:13px}.b:disabled{opacity:.5;cursor:not-allowed}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:var(--sh)}
+.c.okc{background:var(--okb);border-color:var(--ok)}.c.wrc{background:var(--wrb);border-color:var(--wr)}.c.er{background:var(--erb);color:var(--er)}
+.side{position:fixed;inset:0 auto 0 0;width:230px;background:var(--card);border-right:1px solid var(--bd);padding:16px 12px;display:flex;flex-direction:column;gap:4px}
+.br{font-weight:800;font-size:18px;color:var(--p);padding:6px 10px 14px}
+.nv{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:10px;border:0;background:none;color:var(--tx);text-align:left;width:100%}
+.nv.on{background:var(--pl);color:var(--p);font-weight:700}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+.wrap{margin-left:230px}main{padding:18px;max-width:1100px;margin:0 auto}.bn{display:none}.tbn{display:none;font-weight:800;color:var(--p)}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.ac{display:flex;gap:6px;flex-wrap:wrap}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}.g .c{margin:0}
+.g2{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}.g2 .c{margin:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.st small{color:var(--mu);display:block}.st b{font-size:20px}
+.bd{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}
+.bd.ok{background:var(--okb);color:var(--ok)}.bd.wr{background:var(--wrb);color:var(--wr)}.bd.er{background:var(--erb);color:var(--er)}.bd.in{background:var(--inb);color:var(--in)}.bd.mu{background:var(--bd);color:var(--mu)}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.full{grid-column:1/-1}
+.fl{display:flex;gap:8px;flex-wrap:wrap}.fl>*{flex:1;min-width:130px}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px}.tab{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:99px;white-space:nowrap;font-weight:600}.tab.on{background:var(--p);color:#fff;border-color:var(--p)}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--bd);border-radius:14px}
+table{border-collapse:collapse;width:100%}th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd);font-size:14px;vertical-align:top}th{color:var(--mu);font-size:12.5px;white-space:nowrap}
+.r{text-align:right}
+.pgr{display:flex;justify-content:center;align-items:center;gap:12px;margin:12px 0}
+.em{text-align:center;color:var(--mu);padding:30px 10px}
+.ld{text-align:center;color:var(--mu);padding:40px}.ld i{display:inline-block;width:18px;height:18px;border:3px solid var(--bd);border-top-color:var(--p);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}@keyframes sp{to{transform:rotate(360deg)}}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;display:flex;align-items:center;justify-content:center;padding:12px}
+.mbx{background:var(--card);border-radius:16px;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column}.mbx.w{max-width:880px}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--bd)}.mbd{padding:16px;overflow:auto}.mf{padding:12px 16px;border-top:1px solid var(--bd);display:flex;gap:8px;justify-content:flex-end}
+#toasts{position:fixed;top:12px;right:12px;left:12px;z-index:50;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+.ts{background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:420px;font-weight:600}.ts.er{background:var(--er);color:#fff}.ts.ok{background:var(--ok);color:#fff}
+.mg{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}.m{text-align:center;border-radius:10px;padding:6px 2px;border:1px solid var(--bd)}.m small{display:block;color:var(--mu)}
+.m.lunas{background:var(--okb);color:var(--ok)}.m.menunggu{background:var(--wrb);color:var(--wr)}.m.belum{background:var(--erb);color:var(--er)}.m.akan,.m.na{opacity:.6}
+.chs{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;margin:6px 0}
+.ch{border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:9px 4px;font-weight:600}.ch.on{background:var(--p);color:#fff;border-color:var(--p)}.ch:disabled{opacity:.45}.ch small{display:block;font-size:10px}
+.tot{background:var(--pl);border-radius:12px;padding:10px 12px;margin:8px 0 12px}
+.mx td,.mx th{text-align:center;padding:6px 4px}.mx td:first-child,.mx th:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+.mx .lunas{background:var(--okb);color:var(--ok)}.mx .menunggu{background:var(--wrb);color:var(--wr)}.mx .belum{background:var(--erb);color:var(--er)}.mx .akan,.mx .na{color:var(--mu)}
+.chart{width:100%;max-width:420px}.lg{font-size:12px;color:var(--mu)}.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 4px 0 8px}
+.al{font-size:18px}.hh{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
+.dt{background:var(--pl);color:var(--p);border-radius:12px;min-width:54px;text-align:center;padding:6px;font-weight:800;line-height:1.1}.dt small{display:block;font-weight:600}
+.row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--bd)}.row:last-child{border:0}.grow{flex:1;min-width:0}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.ch0{text-align:center;font-size:12px;color:var(--mu);font-weight:700}.cd{min-height:70px;border:1px solid var(--bd);border-radius:8px;padding:3px;font-size:11px;overflow:hidden;background:var(--card)}.cd.td{border-color:var(--p);background:var(--pl)}.ev{background:var(--p);color:#fff;border-radius:4px;padding:1px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ev.x{background:var(--er)}
+.login{max-width:420px;margin:6vh auto;padding:0 14px}.login .big{text-align:center;margin-bottom:16px}.login .big h1{margin:6px 0 0;color:var(--p);font-size:26px}
+pre{white-space:pre-wrap;font:inherit;margin:4px 0}
+@media(max-width:899px){.side{display:none}.wrap{margin-left:0}.tbn{display:block}
+.bn{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+.bn .nv{flex-direction:column;gap:0;font-size:11px;padding:6px 2px;align-items:center;flex:1;border-radius:0;text-align:center}main{padding:14px 12px 90px}.two{grid-template-columns:1fr}}
+@media(max-width:720px){.rt:not(.mx) thead{display:none}.rt:not(.mx) tr{display:block;padding:8px 10px;border-bottom:1px solid var(--bd)}.rt:not(.mx) td{display:flex;justify-content:space-between;gap:12px;border:0;padding:3px 0;text-align:right}.rt:not(.mx) td::before{content:attr(data-l);color:var(--mu);font-size:12.5px;text-align:left;flex-shrink:0}}
+@media(max-width:600px){.ov{align-items:flex-end;padding:0}.mbx{border-radius:16px 16px 0 0;max-height:94vh}.mg{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div id="app"><div class="ld"><i></i> Memuat aplikasi…</div></div>
+<div id="modal"></div>
+<div id="toasts"></div>
+<script>
+/* ===== Util ===== */
+const $=(s,e=document)=>e.querySelector(s);
+const h=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rp=n=>'Rp '+Math.round(+n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const BLN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const MS=BLN.map(b=>b.slice(0,3));
+const tgl=s=>{if(!s)return'-';const a=String(s).split(' ')[0].split('-');return a.length<3?h(s):(+a[2])+' '+BLN[+a[1]-1]+' '+a[0]};
+const pl=p=>BLN[+p.slice(5,7)-1]+' '+p.slice(0,4);
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const SC={'Dihuni Pemilik':'ok','Dikontrak':'in','Kosong':'wr','Terverifikasi':'ok','Menunggu Verifikasi':'wr','Ditolak':'er','Akan Datang':'in','Selesai':'mu','Dibatalkan':'er','Publish':'ok','Draft':'mu','Aktif':'ok','Nonaktif':'er','Pemasukan':'ok','Pengeluaran':'er','Tinggal':'ok','Tidak Tinggal':'mu'};
+const bdg=t=>`<span class="bd ${SC[t]||'mu'}">${h(t)}</span>`;
+const empty=(t='Belum ada data.')=>`<div class="em">📭<br>${t}</div>`;
+const tbl=(c,rows)=>rows.length?`<div class="tw"><table class="rt"><thead><tr>${c.map(x=>`<th>${x[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${c.map(x=>`<td data-l="${x[0]}" class="${x[2]||''}">${x[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:empty();
+const ld=el=>el.innerHTML='<div class="ld"><i></i> Memuat…</div>';
+const PER=8;
+function pager(k,n,per=PER){const t=Math.ceil(n/per)||1,p=Math.min(S.pg[k]||1,t);S.pg[k]=p;return{s:(p-1)*per,e:p*per,html:t<2?'':`<div class="pgr"><button class="b g s" data-act="pg" data-k="${k}" data-p="${p-1}" ${p<2?'disabled':''}>‹ Sebelumnya</button><span>${p} / ${t}</span><button class="b g s" data-act="pg" data-k="${k}" data-p="${p+1}" ${p>=t?'disabled':''}>Berikutnya ›</button></div>`}}
+function toast(m,t='ok'){const e=document.createElement('div');e.className='ts '+t;e.textContent=m;$('#toasts').appendChild(e);setTimeout(()=>e.remove(),t==='er'?5500:3200)}
+function csv(name,head,rows){const q=v=>{v=String(v==null?'':v);if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'};const t='\ufeff'+[head,...rows].map(r=>r.map(q).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+function copyTxt(t){return new Promise(res=>{const done=()=>{toast('Pesan disalin');res()};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb();function fb(){const x=document.createElement('textarea');x.value=t;document.body.appendChild(x);x.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){}x.remove();if(ok)done();else{modal('Salin pesan manual','<textarea rows="9" readonly>'+h(t)+'</textarea>',{noFoot:true});res()}}})}
+
+/* ===== State & API ===== */
+let S={token:null,user:null,pub:null,page:'dash',tab:{kas:'buku',admin:'pengurus'},d:{},f:{},pg:{},re:null,dr:null,cal:{y:new Date().getFullYear(),m:new Date().getMonth()}};
+const NOTOK=['apiGetPublicInfo','apiLoginWarga','apiLoginPengurus'];
+function api(fn,...a){return new Promise(res=>{
+ if(typeof google==='undefined'||!google.script){res({success:false,message:'Buka aplikasi melalui link Web App Google Apps Script.'});return}
+ if(!NOTOK.includes(fn))a.unshift(S.token);
+ google.script.run.withSuccessHandler(r=>res(r||{success:false,message:'Respon kosong dari server.'})).withFailureHandler(e=>res({success:false,message:(e&&e.message)||String(e)}))[fn](...a)})}
+async function A(fn,...a){const r=await api(fn,...a);if(!r.success){if(r.code==='SESSION'&&S.user)expired();throw new Error(r.message)}return r}
+function expired(){S.token=null;S.user=null;try{sessionStorage.removeItem('rt07')}catch(e){}closeM();showLogin();toast('Sesi berakhir, silakan login kembali.','er')}
+
+/* ===== Modal & Form ===== */
+function closeM(){$('#modal').innerHTML=''}
+function modal(title,body,o={}){$('#modal').innerHTML=`<div class="ov"><div class="mbx ${o.wide?'w':''}"><div class="mh"><b>${h(title)}</b><button class="b g s" data-act="mclose">✕</button></div><div class="mbd">${body}</div>${o.noFoot?'':`<div class="mf"><button class="b g" data-act="mclose">Batal</button><button class="b p" id="mok">${h(o.okText||'Simpan')}</button></div>`}</div></div>`;
+ if(o.onOk)$('#mok').onclick=async()=>{const b=$('#mok');b.disabled=true;try{await o.onOk()}catch(e){toast(e.message,'er')}if($('#mok'))$('#mok').disabled=false}}
+function ask(msg,fn,ok='Hapus'){modal('Konfirmasi',`<p>${msg}</p>`,{okText:ok,onOk:async()=>{await fn();closeM()}})}
+function fld(f,v){v=v==null?'':v;const id='f_'+f.k;let i;
+ if(f.t==='select')i=`<select id="${id}" ${f.ro?'disabled':''}>${f.o.map(o=>{const[a,b]=Array.isArray(o)?o:[o,o];return `<option value="${h(a)}" ${a==v?'selected':''}>${h(b)}</option>`}).join('')}</select>`;
+ else if(f.t==='textarea')i=`<textarea id="${id}" rows="4">${h(v)}</textarea>`;
+ else i=`<input id="${id}" type="${f.t||'text'}" value="${h(v)}" ${f.ph?`placeholder="${h(f.ph)}"`:''} ${f.ro?'disabled':''} ${f.t==='password'?'autocomplete="new-password"':''}>`;
+ return `<div class="${f.w?'full':''}"><label for="${id}">${h(f.l)}${f.req?' *':''}</label>${i}</div>`}
+const form=(fs,d={})=>`<div class="fg">${fs.map(f=>fld(f,d[f.k])).join('')}</div>`;
+function read(fs){const o={};fs.forEach(f=>{const v=$('#f_'+f.k).value.trim();if(f.req&&!v)throw new Error(f.l+' wajib diisi.');o[f.k]=v});return o}
+
+/* ===== Login & Shell ===== */
+async function boot(){try{S.token=sessionStorage.getItem('rt07')}catch(e){}
+ const p=await api('apiGetPublicInfo');if(p.success)S.pub=p.data;
+ if(S.token){const r=await api('apiCekSesi');if(r.success){S.user=r.data.user;return start()}S.token=null}
+ showLogin()}
+function showLogin(){const p=S.pub||{namaAplikasi:'RT 07 GO DIGITAL',namaRT:'RT 07',daftarAlamat:[],pinWargaAktif:false};
+ $('#app').innerHTML=`<div class="login"><div class="big"><div style="font-size:42px">🏘️</div><h1>${h(p.namaAplikasi)}</h1><div class="mu">Profil warga & iuran ${h(p.namaRT)}</div></div>
+ <div class="c"><div class="tabs"><button class="tab on" data-act="lt" data-v="w">Login Warga</button><button class="tab" data-act="lt" data-v="p">Login Pengurus</button></div>
+ <form id="lfw"><label>Alamat Rumah</label><select id="lal"><option value="">— Pilih alamat rumah —</option>${p.daftarAlamat.map(a=>`<option>${h(a)}</option>`).join('')}</select>
+ ${p.pinWargaAktif?'<div style="margin-top:10px"><label>PIN</label><input id="lpin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>':''}
+ <button class="b p" style="width:100%;margin-top:14px">Masuk</button></form>
+ <form id="lfp" style="display:none"><label>Username</label><input id="lus" autocomplete="username"><div style="margin-top:10px"><label>Password</label><input id="lpw" type="password" autocomplete="current-password"></div><button class="b p" style="width:100%;margin-top:14px">Masuk</button></form></div>
+ <p class="mu s" style="text-align:center">Warga masuk dengan alamat rumah. Pengurus RT masuk dengan akun.</p></div>`}
+async function doLogin(fn,...a){const r=await A(fn,...a);S.token=r.data.token;S.user=r.data.user;try{sessionStorage.setItem('rt07',S.token)}catch(e){}start()}
+function start(){const u=S.user,p=u.perm,w=u.type==='warga';
+ const M=w?[['dash','🏠','Beranda'],['iuran','🧾','Iuran'],['uang','💰','Keuangan'],['agenda','📅','Agenda'],['info','📢','Info']]:[['dash','🏠','Beranda'],['rumah','👥','Warga'],['kas','💰','Kas & Iuran'],['agenda','📅','Agenda'],['info','📢','Info'],...(p.admin?[['admin','⚙️','Admin']]:[])];
+ const nb=M.map(m=>`<button class="nv" data-act="go" data-p="${m[0]}"><span>${m[1]}</span><span>${m[2]}</span></button>`).join('');
+ const nm=(S.pub&&S.pub.namaAplikasi)||'RT 07 GO DIGITAL';
+ $('#app').innerHTML=`<aside class="side"><div class="br">🏘️ ${h(nm)}</div>${nb}</aside><div class="wrap"><div class="top"><span class="tbn">🏘️ ${h(nm)}</span><span class="mu s">${h(u.nama)} · ${h(w?'Warga':u.jabatan||u.role)}</span><span class="ac">${w?'':'<button class="b g s" data-act="pwd">🔑 Password</button>'}<button class="b g s" data-act="logout">Keluar</button></span></div><main id="main"></main></div><nav class="bn">${nb}</nav>`;
+ go('dash')}
+async function doLogout(){try{await api('apiLogout')}catch(e){}S.token=null;S.user=null;try{sessionStorage.removeItem('rt07')}catch(e){}closeM();showLogin()}
+const PAGES={};
+async function go(p){S.page=p;S.re=S.dr=null;document.querySelectorAll('[data-act=go]').forEach(b=>b.classList.toggle('on',b.dataset.p===p));const m=$('#main');ld(m);window.scrollTo(0,0);try{await PAGES[p]()}catch(e){m.innerHTML=`<div class="c er">⚠️ ${h(e.message)}</div>`}}
+
+/* ===== Dashboard ===== */
+function chart(s){const mx=Math.max(1,...s.flatMap(x=>[x.masuk,x.keluar])),w=320,H=130,bw=14,gap=(w-s.length*bw*2)/(s.length+1);let o=`<svg viewBox="0 0 ${w} ${H+22}" class="chart">`;
+ s.forEach((x,i)=>{const x0=gap+i*(bw*2+gap),a=x.masuk/mx*H,b=x.keluar/mx*H;o+=`<rect x="${x0}" y="${H-a}" width="${bw}" height="${a}" rx="3" fill="var(--p)"/><rect x="${x0+bw}" y="${H-b}" width="${bw}" height="${b}" rx="3" fill="var(--wr)"/><text x="${x0+bw}" y="${H+15}" text-anchor="middle" font-size="9" fill="var(--mu)">${h(x.label)}</text>`});
+ return o+'</svg><div class="lg"><i style="background:var(--p)"></i>Pemasukan<i style="background:var(--wr)"></i>Pengeluaran</div>'}
+const stat=(l,v,go)=>`<div class="c st" ${go?`data-act="gt" data-p="${go[0]}" data-t="${go[1]||''}" style="cursor:pointer"`:''}><small>${l}</small><b>${v}</b></div>`;
+const agList=a=>a.length?a.map(x=>`<div class="row"><div class="dt">${+x.Tanggal.slice(8)}<small>${MS[+x.Tanggal.slice(5,7)-1]}</small></div><div class="grow"><b>${h(x.Judul)}</b><div class="mu s">${h(x.Waktu||'')} ${x.Lokasi?'· '+h(x.Lokasi):''}</div></div></div>`).join(''):empty('Belum ada agenda.');
+const infList=a=>a.length?a.map(x=>`<div class="row"><div class="grow"><b>${h(x.Judul)}</b> ${bdg(x.Kategori)}<div class="mu s">${tgl(x.TanggalTerbit)}</div><div>${h(String(x.Isi).slice(0,150))}${x.Isi.length>150?'…':''}</div></div></div>`).join(''):empty('Belum ada informasi.');
+PAGES.dash=async()=>{const d=(await A('apiGetDashboard')).data,w=S.user.type==='warga';let top;
+ if(w){const i=d.iuran;top=`<div class="c ${i.lunas?'okc':'wrc'}"><h3>Status Iuran Rumah ${h(d.rumah.alamat)} ${bdg(d.rumah.statusHunian)}</h3>${i.lunas?'<p>✅ Iuran lunas sampai bulan ini. Terima kasih!</p>':`<p>⚠️ Tunggakan <b>${i.totalBulan} bulan</b> · <b>${rp(i.totalNominal)}</b></p><ul>${i.tunggakan.map(t=>`<li><b>${h(t.jenis)}</b>: ${t.periode.map(pl).join(', ')}</li>`).join('')}</ul>`}${i.menunggu?`<p class="mu">⏳ ${i.menunggu} pembayaran menunggu verifikasi pengurus.</p>`:''}<div class="ac"><button class="b p" data-act="bayar">Bayar / Upload Iuran</button><button class="b" data-act="go" data-p="iuran">Riwayat Iuran</button></div></div>
+ <div class="g">${stat('Saldo Kas RT',rp(d.saldo),['uang'])}${stat('Pemasukan Bulan Ini',rp(d.bulanIni.masuk))}${stat('Pengeluaran Bulan Ini',rp(d.bulanIni.keluar))}</div>`}
+ else{const r=d.ringkas;top=`<div class="g">${stat('Saldo Kas',rp(d.saldo),['kas'])}${stat('Pemasukan Bulan Ini',rp(d.bulanIni.masuk))}${stat('Pengeluaran Bulan Ini',rp(d.bulanIni.keluar))}${stat('Total Rumah',r.totalRumah,['rumah'])}${stat('Total Warga',r.totalWarga+' <small>('+r.wargaTinggal+' tinggal)</small>',['rumah'])}${stat('Menunggu Verifikasi',r.menungguVerifikasi,['kas','verif'])}${stat('Rumah Menunggak',r.rumahMenunggak,['kas','tunggak'])}${stat('Total Tunggakan',rp(r.totalTunggakan),['kas','tunggak'])}</div>
+ <div class="c"><h3>Status Hunian</h3>${Object.keys(r.perStatus).map(k=>`${bdg(k)} <b>${r.perStatus[k]}</b> rumah &nbsp;`).join('')}</div>`}
+ $('#main').innerHTML=`<div class="ph"><h2>Beranda ${h(d.namaRT)}</h2></div>${top}<div class="two"><div class="c"><h3>Pemasukan vs Pengeluaran (6 bulan)</h3>${chart(d.series)}</div><div class="c"><h3>Agenda Terdekat</h3>${agList(d.agenda)}</div></div><div class="c"><h3>Informasi Terbaru</h3>${infList(d.info)}</div>`};
+
+/* ===== Data Rumah & Warga ===== */
+const HN=['Dihuni Pemilik','Dikontrak','Kosong'],HUB=['Kepala Keluarga','Istri','Anak','Lainnya'];
+const profil=r=>r.StatusHunian==='Dihuni Pemilik'?`Dihuni oleh pemilik ${h(r.NamaPemilik)} · aktif`:r.StatusHunian==='Dikontrak'?`Dihuni oleh ${h(r.NamaPenghuni)} (kontrak)${r.NamaPemilik?' · pemilik '+h(r.NamaPemilik):''} · aktif`:`Milik ${h(r.NamaPemilik)} · kosong (tidak ditinggali) · tetap membayar iuran`;
+PAGES.rumah=async()=>{S.d.rumah=(await A('apiListRumah')).data;const p=S.user.perm,bl=[...new Set(S.d.rumah.map(r=>r.Blok))].sort();
+ $('#main').innerHTML=`<div class="ph"><h2>Data Warga & Kepala Keluarga</h2><div class="ac">${p.ubahData?'<button class="b p" data-act="radd">+ Rumah</button><button class="b" data-act="wcsv">Ekspor Warga</button>':''}<button class="b" data-act="rcsv">Ekspor Rumah</button></div></div>
+ <div class="c fl"><input data-f="rumah.q" placeholder="Cari alamat / nama…" value="${h(S.f['rumah.q']||'')}"><select data-f="rumah.blok"><option value="">Semua blok</option>${bl.map(b=>`<option ${S.f['rumah.blok']===b?'selected':''}>${h(b)}</option>`).join('')}</select><select data-f="rumah.st"><option value="">Semua status</option>${HN.map(b=>`<option ${S.f['rumah.st']===b?'selected':''}>${b}</option>`).join('')}</select></div><div id="lst"></div>`;
+ S.re=S.dr=drawRumah;drawRumah()};
+const rumahFiltered=()=>{const q=(S.f['rumah.q']||'').toLowerCase(),b=S.f['rumah.blok']||'',s=S.f['rumah.st']||'';return S.d.rumah.filter(r=>(!b||r.Blok===b)&&(!s||r.StatusHunian===s)&&(!q||[r.Alamat,r.NamaPemilik,r.NamaPenghuni,r.NamaKepalaKeluarga].join(' ').toLowerCase().includes(q)))};
+function drawRumah(){const p=S.user.perm,L=rumahFiltered(),pg=pager('rumah',L.length);
+ $('#lst').innerHTML=L.length?`<div class="g2">${L.slice(pg.s,pg.e).map(r=>`<div class="c"><div class="hh"><div><b class="al">${h(r.Alamat)}</b> ${bdg(r.StatusHunian)}</div><div class="mu">${profil(r)}</div></div><div class="mu s" style="margin-bottom:8px">Kepala keluarga: <b>${h(r.NamaKepalaKeluarga||'-')}</b> · ${r.JumlahAnggota} anggota (${r.JumlahTinggal} tinggal)${r.PINSet?' · 🔒 PIN':''}</div><div class="ac"><button class="b s" data-act="rdet" data-id="${h(r.ID)}">Detail</button><button class="b s" data-act="riw" data-al="${h(r.Alamat)}">Iuran</button>${p.ubahData?`<button class="b s" data-act="redit" data-id="${h(r.ID)}">Ubah</button><button class="b s" data-act="rpin" data-id="${h(r.ID)}">PIN</button><button class="b s d" data-act="rdel" data-id="${h(r.ID)}">Hapus</button>`:''}</div></div>`).join('')}</div>${pg.html}`:empty('Tidak ada rumah yang cocok.')}
+async function rForm(r){const kat=(await A('apiListTarif')).data.kategori;r=r||{StatusHunian:'Dihuni Pemilik',KategoriIuran:'Umum'};
+ const F=[{k:'Alamat',l:'Alamat Rumah',req:1,ph:'A4/1',ro:!!r.ID},{k:'StatusHunian',l:'Status Hunian',t:'select',o:HN},{k:'NamaPemilik',l:'Nama Pemilik'},{k:'NamaPenghuni',l:'Nama Penghuni / Pengontrak'},{k:'NoHP',l:'No. HP'},{k:'KategoriIuran',l:'Kategori Iuran',t:'select',o:kat},{k:'Keterangan',l:'Keterangan',t:'textarea',w:1}];
+ modal(r.ID?'Ubah Rumah':'Tambah Rumah',`<p class="mu s">Dihuni Pemilik → isi pemilik. Dikontrak → isi penghuni (pemilik boleh kosong). Kosong → isi pemilik; iuran tetap ditagih.</p>`+form(F,r),{onOk:async()=>{const o=read(F);if(r.ID)o.ID=r.ID;const x=await A('apiSaveRumah',o);closeM();toast(x.message);if(S.page==='rumah')PAGES.rumah()}})}
+async function showRumah(id){const d=(await A('apiGetRumahDetail',id)).data;S.cur=d;const r=d.rumah,p=S.user.perm;
+ modal('Rumah '+r.Alamat,`<div style="margin-bottom:8px">${bdg(r.StatusHunian)} <span class="mu">${profil(r)}</span></div><p class="mu s">Pemilik: ${h(r.NamaPemilik||'-')} · Penghuni: ${h(r.NamaPenghuni||'-')} · HP: ${h(r.NoHP||'-')} · Kategori iuran: ${h(r.KategoriIuran)}${r.Keterangan?'<br>'+h(r.Keterangan):''}</p>
+ <div class="ph"><b>Anggota Keluarga (${d.anggota.length})</b>${p.ubahData?`<button class="b p s" data-act="wadd" data-id="${h(r.ID)}">+ Anggota</button>`:''}</div>`+
+ tbl([['Nama',w=>`<b>${h(w.NamaLengkap)}</b>`],['Hubungan',w=>h(w.HubunganKeluarga)],['JK',w=>h(w.JenisKelamin||'-')],['Lahir',w=>tgl(w.TanggalLahir)],['NIK',w=>h(w.NIK)],['Status',w=>bdg(w.StatusTinggal)],...(p.ubahData?[['',w=>`<button class="b s" data-act="wedit" data-id="${h(w.ID)}">Ubah</button> <button class="b s d" data-act="wdel" data-id="${h(w.ID)}">Hapus</button>`]]:[])],d.anggota),{noFoot:true,wide:true})}
+const WF=[{k:'AlamatRumah',l:'Alamat Rumah',ro:1},{k:'NamaLengkap',l:'Nama Lengkap',req:1},{k:'NIK',l:'NIK (16 digit)',req:1},{k:'HubunganKeluarga',l:'Hubungan Keluarga',t:'select',o:HUB},{k:'JenisKelamin',l:'Jenis Kelamin',t:'select',o:['Laki-laki','Perempuan']},{k:'TempatLahir',l:'Tempat Lahir'},{k:'TanggalLahir',l:'Tanggal Lahir',t:'date'},{k:'Pekerjaan',l:'Pekerjaan'},{k:'StatusTinggal',l:'Status Tinggal',t:'select',o:['Tinggal','Tidak Tinggal']},{k:'NoHP',l:'No. HP'}];
+function wForm(r,w){w=w||{AlamatRumah:r.Alamat,StatusTinggal:r.StatusHunian==='Kosong'?'Tidak Tinggal':'Tinggal',HubunganKeluarga:'Anak'};
+ modal(w.ID?'Ubah Anggota':'Tambah Anggota',form(WF,w),{onOk:async()=>{const o=read(WF);if(w.ID)o.ID=w.ID;const x=await A('apiSaveWarga',o);toast(x.message);if(S.page==='rumah')PAGES.rumah();showRumah(r.ID)}})}
+
+/* ===== Buku Kas & Iuran (pengurus) ===== */
+const KT=[['buku','Buku Kas'],['verif','Verifikasi'],['matriks','Matriks Iuran'],['tunggak','Tunggakan'],['tarif','Tarif']];
+const TABS={};
+PAGES.kas=async()=>{$('#main').innerHTML=`<div class="ph"><h2>Buku Kas & Iuran Warga</h2></div><div class="tabs">${KT.map(([k,l])=>`<button class="tab ${S.tab.kas===k?'on':''}" data-act="tab" data-g="kas" data-v="${k}">${l}</button>`).join('')}</div><div id="tb"></div>`;S.re=S.dr=null;await TABS[S.tab.kas]()};
+TABS.buku=()=>kasLoad(true);
+async function kasLoad(full){const g=k=>S.f['kas.'+k]||'';const r=(await A('apiListKas',{dari:g('dari'),sampai:g('sampai'),jenis:g('jenis'),kategori:g('kategori'),q:g('q')})).data;S.d.kas=r;const p=S.user.perm;
+ if(full){$('#tb').innerHTML=`<div class="c fl"><div><label>Dari</label><input type="date" data-f="kas.dari" value="${h(g('dari'))}"></div><div><label>Sampai</label><input type="date" data-f="kas.sampai" value="${h(g('sampai'))}"></div><div><label>Jenis</label><select data-f="kas.jenis"><option value="">Semua</option><option ${g('jenis')==='Pemasukan'?'selected':''}>Pemasukan</option><option ${g('jenis')==='Pengeluaran'?'selected':''}>Pengeluaran</option></select></div><div><label>Kategori</label><select data-f="kas.kategori"><option value="">Semua</option>${r.kategori.map(k=>`<option ${g('kategori')===k?'selected':''}>${h(k)}</option>`).join('')}</select></div><div><label>Cari</label><input data-f="kas.q" placeholder="Uraian…" value="${h(g('q'))}"></div></div>
+ <div class="ac" style="margin-bottom:12px">${p.ubahKeuangan?'<button class="b p" data-act="kadd" data-j="Pemasukan">+ Pemasukan</button><button class="b" data-act="kadd" data-j="Pengeluaran">+ Pengeluaran</button>':''}<button class="b" data-act="kcsv">Ekspor CSV</button></div><div id="kr"></div>`;S.re=()=>kasLoad(false);S.dr=drawKas}
+ drawKas()}
+function drawKas(){const r=S.d.kas,p=S.user.perm,L=r.rows.slice().reverse(),pg=pager('kas',L.length,15);
+ $('#kr').innerHTML=`<div class="g"><div class="c st"><small>Pemasukan (filter)</small><b style="color:var(--ok)">${rp(r.totalMasuk)}</b></div><div class="c st"><small>Pengeluaran (filter)</small><b style="color:var(--er)">${rp(r.totalKeluar)}</b></div><div class="c st"><small>Selisih</small><b>${rp(r.selisih)}</b></div><div class="c st"><small>Saldo Akhir Kas</small><b>${rp(r.saldoAkhir)}</b></div></div>`+
+ tbl([['Tanggal',x=>tgl(x.Tanggal)],['Jenis',x=>bdg(x.Jenis)],['Kategori',x=>h(x.Kategori)],['Uraian',x=>h(x.Uraian)],['Nominal',x=>`<b>${rp(x.Nominal)}</b>`,'r'],['Saldo',x=>rp(x.Saldo),'r'],...(p.ubahKeuangan?[['',x=>x.SumberReferensi?'<span class="mu s">dari iuran</span>':`<button class="b s" data-act="kedit" data-id="${h(x.ID)}">Ubah</button> <button class="b s d" data-act="kdel" data-id="${h(x.ID)}">Hapus</button>`]]:[])],L.slice(pg.s,pg.e))+pg.html}
+const KF=[{k:'Tanggal',l:'Tanggal',t:'date',req:1},{k:'Jenis',l:'Jenis',t:'select',o:['Pemasukan','Pengeluaran']},{k:'Kategori',l:'Kategori',req:1,ph:'mis. Kebersihan, Donasi'},{k:'Nominal',l:'Nominal (Rp)',t:'number',req:1},{k:'Uraian',l:'Uraian',t:'textarea',w:1,req:1}];
+function kForm(x){modal(x.ID?'Ubah Transaksi Kas':'Catat '+x.Jenis,form(KF,x),{onOk:async()=>{const o=read(KF);if(x.ID)o.ID=x.ID;const r=await A('apiSaveKas',o);closeM();toast(r.message);kasLoad(false)}})}
+
+TABS.verif=async()=>{if(S.f['vf.st']===undefined)S.f['vf.st']='Menunggu Verifikasi';const p=S.user.perm;
+ $('#tb').innerHTML=`<div class="c fl"><select data-f="vf.st">${[['Menunggu Verifikasi','Menunggu Verifikasi'],['Terverifikasi','Terverifikasi'],['Ditolak','Ditolak'],['','Semua status']].map(o=>`<option value="${o[0]}" ${S.f['vf.st']===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select><input data-f="vf.q" placeholder="Cari alamat / kode…" value="${h(S.f['vf.q']||'')}">${p.ubahKeuangan?'<button class="b p" data-act="bayar">+ Catat Pembayaran</button>':''}</div><div id="vr"></div>`;S.re=vLoad;S.dr=vDraw;await vLoad()};
+async function vLoad(){S.d.vf=(await A('apiListPembayaran',{status:S.f['vf.st']||'',q:S.f['vf.q']||''})).data;vDraw()}
+function vDraw(){const p=S.user.perm,L=S.d.vf,pg=pager('vf',L.length);
+ $('#vr').innerHTML=L.length?`<div class="g2">${L.slice(pg.s,pg.e).map(x=>`<div class="c"><div class="hh"><div><b class="al">${h(x.alamat)}</b> ${bdg(x.status)}</div><div>${h(x.jenis)} · <b>${rp(x.total)}</b></div></div><div class="s mu">${x.periode.map(pl).join(', ')}<br>Dibayar ${tgl(x.tanggalBayar)} via ${h(x.metode)} · ${h(x.kode)}${x.catatan?'<br>Catatan: '+h(x.catatan):''}${x.diverifikasiOleh?'<br>Diproses: '+h(x.diverifikasiOleh):''}</div><div class="ac" style="margin-top:8px">${x.adaBukti?`<button class="b s" data-act="bukti" data-k="${h(x.kode)}">Lihat Bukti</button>`:''}${p.ubahKeuangan&&x.status==='Menunggu Verifikasi'?`<button class="b p s" data-act="vok" data-k="${h(x.kode)}">Terima</button><button class="b s d" data-act="vno" data-k="${h(x.kode)}">Tolak</button>`:''}${p.ubahKeuangan?`<button class="b s d" data-act="vdel" data-k="${h(x.kode)}">Hapus</button>`:''}</div></div>`).join('')}</div>${pg.html}`:empty('Tidak ada transaksi.')}
+async function viewBukti(k){const d=(await A('apiGetBukti',k)).data;modal('Bukti Pembayaran',d.mime.startsWith('image/')?`<img src="${d.dataUrl}" style="max-width:100%;border-radius:10px">`:`<p>Berkas PDF.</p>`,{noFoot:true});$('.mbd').insertAdjacentHTML('beforeend',`<p><a class="b" href="${d.dataUrl}" download="${h(d.nama)}">⬇ Unduh</a></p>`)}
+
+TABS.matriks=async()=>{const y=+(S.f['mx.y']||new Date().getFullYear()),r=(await A('apiGetMatriks',y,S.f['mx.j']||'')).data,cy=new Date().getFullYear(),SY={lunas:'✓',menunggu:'…',belum:'✗',akan:'·',na:'–'};
+ $('#tb').innerHTML=`<div class="c fl"><select data-f="mx.y">${[cy-2,cy-1,cy,cy+1].map(v=>`<option ${v===r.tahun?'selected':''}>${v}</option>`).join('')}</select><select data-f="mx.j">${r.daftarJenis.map(j=>`<option ${j===r.jenis?'selected':''}>${h(j)}</option>`).join('')}</select></div><p class="mu s">✓ Lunas · … Menunggu verifikasi · ✗ Belum bayar · · Belum jatuh tempo · – Tidak ditagih. Klik alamat untuk riwayat.</p>
+ <div class="tw"><table class="rt mx"><thead><tr><th>Rumah</th>${MS.map(m=>`<th>${m}</th>`).join('')}</tr></thead><tbody>${r.rows.map(x=>`<tr><td><button class="b g s" data-act="riw" data-al="${h(x.alamat)}"><b>${h(x.alamat)}</b></button><div class="mu s">${bdgS(x.statusHunian)}</div></td>${Array.from({length:12},(_,i)=>{const s=x.bulan[pad(i+1)];return `<td class="${s}">${SY[s]}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;S.re=TABS.matriks};
+const bdgS=s=>h(s);
+TABS.tunggak=async()=>{const r=(await A('apiGetTunggakan')).data;S.d.tg=r.rows;
+ $('#tb').innerHTML=`<div class="g"><div class="c st"><small>Rumah Menunggak</small><b>${r.totalRumah}</b></div><div class="c st"><small>Total Tunggakan</small><b>${rp(r.totalNominal)}</b></div></div>`+(r.rows.length?`<div class="g2">${r.rows.map((x,i)=>`<div class="c"><div class="hh"><div><b class="al">${h(x.alamat)}</b> ${bdg(x.statusHunian)}</div><div class="mu">${h(x.kepala)}</div></div>${x.items.map(t=>`<div class="s"><b>${h(t.jenis)}</b>: ${t.periode.map(pl).join(', ')}</div>`).join('')}<p><b>${x.totalBulan} bulan · ${rp(x.totalNominal)}</b></p><div class="ac"><button class="b s" data-act="wa" data-i="${i}">Salin Pesan WA</button>${x.noHP?`<a class="b s" target="_blank" rel="noopener" href="https://wa.me/${h(x.noHP.replace(/\D/g,'').replace(/^0/,'62'))}?text=${encodeURIComponent(x.pesan)}">Buka WhatsApp</a>`:''}<button class="b s" data-act="riw" data-al="${h(x.alamat)}">Riwayat</button></div></div>`).join('')}</div>`:'<div class="c okc">🎉 Tidak ada tunggakan.</div>')};
+TABS.tarif=async()=>{const r=(await A('apiListTarif')).data,p=S.user.perm;S.d.tarif=r.rows;
+ $('#tb').innerHTML=`<div class="ph"><span class="mu s">Nominal iuran per bulan. Kategori "Umum" dipakai bila rumah tidak punya tarif khusus.</span>${p.ubahKeuangan?'<button class="b p" data-act="tadd">+ Tarif</button>':''}</div>`+tbl([['Jenis',x=>`<b>${h(x.JenisIuran)}</b>`],['Kategori',x=>h(x.KategoriIuran)],['Nominal / bulan',x=>rp(x.Nominal),'r'],['Status',x=>bdg(x.Status)],...(p.ubahKeuangan?[['',x=>`<button class="b s" data-act="tedit" data-id="${h(x.ID)}">Ubah</button> <button class="b s d" data-act="tdel" data-id="${h(x.ID)}">Hapus</button>`]]:[])],r.rows)};
+const TF=[{k:'JenisIuran',l:'Jenis Iuran',req:1,ph:'Keamanan'},{k:'KategoriIuran',l:'Kategori',ph:'Umum'},{k:'Nominal',l:'Nominal / bulan (Rp)',t:'number',req:1},{k:'Status',l:'Status',t:'select',o:['Aktif','Nonaktif']}];
+function tForm(x){modal(x.ID?'Ubah Tarif':'Tambah Tarif',form(TF,x),{onOk:async()=>{const o=read(TF);if(x.ID)o.ID=x.ID;const r=await A('apiSaveTarif',o);closeM();toast(r.message);TABS.tarif()}})}
+
+/* ===== Riwayat iuran & pembayaran ===== */
+async function loadRw(al,th,sel){const d=(await A('apiGetRiwayatIuran',+th,al||null)).data;S.rw={al,sel};S.f['rw.y']=d.tahun;$(sel).innerHTML=rwHTML(d)}
+const MI={lunas:'✓',menunggu:'⏳',belum:'✗',akan:'·',na:'–'};
+function rwHTML(d){const cy=new Date().getFullYear(),w=S.user.type==='warga',can=w||S.user.perm.ubahKeuangan;
+ return `<div class="ph"><div><b class="al">Rumah ${h(d.alamat)}</b> ${bdg(d.statusHunian)}</div><div class="ac"><select data-yr="1" style="width:auto">${[cy-3,cy-2,cy-1,cy,cy+1].map(v=>`<option ${v===d.tahun?'selected':''}>${v}</option>`).join('')}</select>${can?`<button class="b p" data-act="bayar" data-al="${h(d.alamat)}">${w?'+ Bayar Iuran':'+ Catat Pembayaran'}</button>`:''}</div></div>
+ ${d.tunggakan.length?`<div class="c wrc"><b>⚠️ Tunggakan ${rp(d.totalTunggakan)}</b>${d.tunggakan.map(t=>`<div class="s"><b>${h(t.jenis)}</b>: ${t.periode.map(pl).join(', ')}</div>`).join('')}</div>`:'<div class="c okc">✅ Tidak ada tunggakan.</div>'}
+ ${d.jenis.map(j=>`<div class="c"><b>${h(j)} · ${d.tahun}</b><div class="mg">${MS.map((n,i)=>{const s=d.grid[j][pad(i+1)];return `<div class="m ${s}"><small>${n}</small><b>${MI[s]}</b></div>`}).join('')}</div></div>`).join('')}
+ <p class="mu s">✓ Lunas · ⏳ Menunggu verifikasi · ✗ Belum bayar · · Belum jatuh tempo · – Tidak ditagih</p><h3>Riwayat Transaksi</h3>`+
+ tbl([['Tanggal',x=>tgl(x.tanggalBayar)],['Jenis',x=>h(x.jenis)],['Periode',x=>x.periode.map(pl).join(', ')],['Total',x=>`<b>${rp(x.total)}</b>`,'r'],['Status',x=>bdg(x.status)],['Catatan',x=>h(x.catatan||'-')],['Bukti',x=>x.adaBukti?`<button class="b s" data-act="bukti" data-k="${h(x.kode)}">Lihat</button>`:'-']],d.transaksi)}
+PAGES.iuran=async()=>{$('#main').innerHTML='<h2 style="margin-bottom:12px">Riwayat Iuran</h2><div id="rwbox"></div>';await loadRw(null,S.f['rw.y']||new Date().getFullYear(),'#rwbox')};
+function riwModal(al){modal('Riwayat Iuran '+al,'<div id="rwbox"></div>',{noFoot:true,wide:true});return loadRw(al,new Date().getFullYear(),'#rwbox')}
+
+/* ===== Form bayar (multi bulan) ===== */
+let B={};
+const rd=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error('Gagal membaca file.'));r.readAsDataURL(f)});
+function compress(f){return new Promise((res,rej)=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,1400/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);let q=.78,o=c.toDataURL('image/jpeg',q);while(o.length*.75>1.9*1048576&&q>.3){q-=.12;o=c.toDataURL('image/jpeg',q)}res(o)};im.onerror=()=>rej(new Error('Gambar tidak dapat dibaca.'));im.src=u})}
+async function fileData(f){if(!f)return{};if(f.type==='application/pdf'){if(f.size>2*1048576)throw new Error('PDF maksimal 2 MB.');return{mimeType:f.type,base64:await rd(f)}}if(!/^image\/(jpeg|png)$/.test(f.type))throw new Error('Gunakan file JPG, PNG, atau PDF.');return{mimeType:'image/jpeg',base64:await compress(f)}}
+async function openBayar(al){const w=S.user.type==='warga';let list=[];
+ if(!w){list=(await A('apiListRumah')).data;if(!list.length)throw new Error('Belum ada data rumah.');al=al||list[0].Alamat}
+ modal(w?'Bayar Iuran':'Catat Pembayaran',`${w?'':`<div style="margin-bottom:10px"><label>Rumah</label><select id="bal">${list.map(r=>`<option ${r.Alamat===al?'selected':''}>${h(r.Alamat)}</option>`).join('')}</select></div>`}<div id="bp"></div>`,{okText:w?'Kirim Pembayaran':'Catat Pembayaran',wide:true,onOk:bayarSubmit});
+ await bayarLoad(al)}
+async function bayarLoad(al){const d=(await A('apiGetFormBayar',al||null)).data;B={d,al:d.alamat,j:d.jenis[0]&&d.jenis[0].jenis,sel:new Set(),y:d.tahunSekarang};drawBayar()}
+function drawBayar(){const d=B.d,w=S.user.type==='warga';
+ if(!d.jenis.length){$('#bp').innerHTML='<div class="c er">Tarif iuran belum diatur. Hubungi pengurus.</div>';return}
+ $('#bp').innerHTML=`<div class="c" style="background:var(--pl)"><b>Rekening tujuan</b><br>${h(d.rekening.bank)} · <b>${h(d.rekening.nomor)}</b> a.n. ${h(d.rekening.atasNama)}</div>
+ <div class="fg"><div><label>Jenis Iuran</label><select id="bj">${d.jenis.map(x=>`<option value="${h(x.jenis)}">${h(x.jenis)} — ${rp(x.nominal)}/bulan</option>`).join('')}</select></div><div><label>Tahun</label><select id="by">${[d.tahunSekarang-1,d.tahunSekarang,d.tahunSekarang+1].map(v=>`<option ${v===B.y?'selected':''}>${v}</option>`).join('')}</select></div></div>
+ <label style="margin-top:12px">Pilih bulan (boleh lebih dari satu, termasuk beda tahun)</label><div class="chs" id="bch"></div><div class="tot" id="btot"></div>
+ <div class="fg"><div><label>Tanggal Bayar</label><input type="date" id="btg" value="${today()}"></div><div><label>Metode</label><select id="bmt"><option>Transfer</option><option>Tunai</option><option>QRIS / E-wallet</option><option>Lainnya</option></select></div><div class="full"><label>Bukti pembayaran ${w?'*':'(opsional)'}</label><input type="file" id="bfl" accept="image/jpeg,image/png,application/pdf"><small class="mu">JPG / PNG / PDF, maks ${d.maksMB} MB. Foto dikompres otomatis.</small></div></div>`;drawChips()}
+function drawChips(){const nm=B.d.jenis.find(x=>x.jenis===B.j).nominal,used=(B.d.terpakai[B.j]||[]).reduce((o,x)=>(o[x.periode]=x.status,o),{});
+ $('#bch').innerHTML=MS.map((n,i)=>{const p=B.y+'-'+pad(i+1),u=used[p];return `<button type="button" class="ch ${B.sel.has(p)?'on':''}" data-act="chip" data-p="${p}" ${u?'disabled':''}>${n}${u?`<small>${u==='Terverifikasi'?'lunas':'menunggu'}</small>`:''}</button>`}).join('');
+ $('#btot').innerHTML=`${B.sel.size} bulan × ${rp(nm)} = <b>${rp(B.sel.size*nm)}</b>${B.sel.size?`<br><small class="mu">${[...B.sel].sort().map(pl).join(', ')}</small>`:''}`}
+async function bayarSubmit(){const w=S.user.type==='warga';if(!B.sel.size)throw new Error('Pilih minimal satu bulan.');const f=$('#bfl').files[0];if(w&&!f)throw new Error('Unggah bukti pembayaran.');
+ const p={jenis:B.j,periode:[...B.sel].sort(),tanggalBayar:$('#btg').value,metode:$('#bmt').value,...await fileData(f)};let r;
+ if(w)r=await A('apiUploadPembayaran',p);else{p.alamat=B.al;r=await A('apiCatatPembayaranManual',p)}
+ closeM();toast(r.message);go(S.page)}
+
+/* ===== Keuangan (warga) ===== */
+PAGES.uang=async()=>{const d=(await A('apiGetKeuanganPublik')).data;S.d.uang=d;
+ $('#main').innerHTML=`<div class="ph"><h2>Informasi Keuangan RT</h2></div><div class="g">${stat('Saldo Kas',rp(d.saldo))}${stat('Total Pemasukan',rp(d.totalMasuk))}${stat('Total Pengeluaran',rp(d.totalKeluar))}${stat('Pemasukan Bulan Ini',rp(d.bulanIni.masuk))}${stat('Pengeluaran Bulan Ini',rp(d.bulanIni.keluar))}</div>
+ <div class="two"><div class="c"><h3>Grafik 6 Bulan Terakhir</h3>${chart(d.series)}</div><div class="c"><h3>Tarif Iuran</h3>${d.tarif.map(t=>`<div class="row"><div class="grow">${h(t.JenisIuran)} <span class="mu s">(${h(t.KategoriIuran)})</span></div><b>${rp(t.Nominal)}</b></div>`).join('')||empty()}</div></div><h3>Transaksi Kas Terbaru</h3><div id="lst"></div>`;
+ S.dr=drawUang;drawUang()};
+function drawUang(){const L=S.d.uang.rows,pg=pager('uang',L.length,12);$('#lst').innerHTML=tbl([['Tanggal',x=>tgl(x.Tanggal)],['Jenis',x=>bdg(x.Jenis)],['Uraian',x=>h(x.Uraian)],['Nominal',x=>`<b>${rp(x.Nominal)}</b>`,'r']],L.slice(pg.s,pg.e))+pg.html}
+
+/* ===== Agenda ===== */
+const AF=[{k:'Judul',l:'Judul',req:1,w:1},{k:'Tanggal',l:'Tanggal',t:'date',req:1},{k:'Waktu',l:'Waktu',t:'time'},{k:'Lokasi',l:'Lokasi'},{k:'Status',l:'Status',t:'select',o:['Akan Datang','Selesai','Dibatalkan']},{k:'Deskripsi',l:'Deskripsi',t:'textarea',w:1}];
+PAGES.agenda=async()=>{const p=S.user.perm;
+ $('#main').innerHTML=`<div class="ph"><h2>Agenda Kegiatan</h2>${p.ubahData?'<button class="b p" data-act="aadd">+ Agenda</button>':''}</div><div class="c fl"><select data-f="ag.st">${[['','Semua status'],['akan','Akan datang'],['selesai','Selesai'],['batal','Dibatalkan']].map(o=>`<option value="${o[0]}" ${(S.f['ag.st']||'')===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select><input data-f="ag.q" placeholder="Cari kegiatan…" value="${h(S.f['ag.q']||'')}"></div><div id="lst"></div>`;
+ S.re=agLoad;S.dr=agDraw;await agLoad()};
+async function agLoad(){S.d.ag=(await A('apiListAgenda',{status:S.f['ag.st']||'',q:S.f['ag.q']||''})).data;agDraw()}
+function agDraw(){const p=S.user.perm,v=S.f['ag.v']||'list',tg=`<div class="tabs"><button class="tab ${v==='list'?'on':''}" data-act="view" data-v="list">Daftar</button><button class="tab ${v==='cal'?'on':''}" data-act="view" data-v="cal">Kalender</button></div>`;
+ if(v==='cal'){const{y,m}=S.cal,first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate(),ev={},pre=y+'-'+pad(m+1);S.d.ag.forEach(a=>{if(a.Tanggal.slice(0,7)===pre)(ev[+a.Tanggal.slice(8)]=ev[+a.Tanggal.slice(8)]||[]).push(a)});
+  let c=['Min','Sen','Sel','Rab','Kam','Jum','Sab'].map(x=>`<div class="ch0">${x}</div>`).join('');for(let i=0;i<first;i++)c+='<div></div>';
+  for(let d=1;d<=dim;d++)c+=`<div class="cd ${today()===pre+'-'+pad(d)?'td':''}"><b>${d}</b>${(ev[d]||[]).map(a=>`<div class="ev ${a.StatusTampil==='Dibatalkan'?'x':''}" title="${h(a.Judul)}">${h(a.Waktu||'')} ${h(a.Judul)}</div>`).join('')}</div>`;
+  $('#lst').innerHTML=tg+`<div class="ph"><button class="b s" data-act="cprev">‹</button><b>${BLN[m]} ${y}</b><button class="b s" data-act="cnext">›</button></div><div class="cal">${c}</div>`;return}
+ const L=S.d.ag,pg=pager('ag',L.length);
+ $('#lst').innerHTML=tg+(L.length?`<div class="c">${L.slice(pg.s,pg.e).map(a=>`<div class="row"><div class="dt">${+a.Tanggal.slice(8)}<small>${MS[+a.Tanggal.slice(5,7)-1]}</small></div><div class="grow"><b>${h(a.Judul)}</b> ${bdg(a.StatusTampil)}<div class="mu s">${tgl(a.Tanggal)} ${h(a.Waktu||'')} ${a.Lokasi?'· '+h(a.Lokasi):''}</div>${a.Deskripsi?`<pre>${h(a.Deskripsi)}</pre>`:''}${p.ubahData?`<div class="ac"><button class="b s" data-act="aedit" data-id="${h(a.ID)}">Ubah</button><button class="b s d" data-act="adel" data-id="${h(a.ID)}">Hapus</button></div>`:''}</div></div>`).join('')}</div>${pg.html}`:empty('Belum ada agenda.'))}
+
+/* ===== Informasi ===== */
+const KI=['Pengumuman','Keuangan','Keamanan','Lainnya'];
+const IF=[{k:'Judul',l:'Judul',req:1,w:1},{k:'Kategori',l:'Kategori',t:'select',o:KI},{k:'TanggalTerbit',l:'Tanggal Terbit',t:'date'},{k:'Status',l:'Status',t:'select',o:['Publish','Draft']},{k:'Isi',l:'Isi Informasi',t:'textarea',w:1,req:1}];
+PAGES.info=async()=>{const p=S.user.perm;
+ $('#main').innerHTML=`<div class="ph"><h2>Informasi Warga</h2>${p.ubahData?'<button class="b p" data-act="iadd">+ Informasi</button>':''}</div><div class="c fl"><select data-f="in.kt"><option value="">Semua kategori</option>${KI.map(k=>`<option ${S.f['in.kt']===k?'selected':''}>${k}</option>`).join('')}</select>${S.user.type==='pengurus'?`<select data-f="in.st"><option value="">Publish & Draft</option><option ${S.f['in.st']==='Publish'?'selected':''}>Publish</option><option ${S.f['in.st']==='Draft'?'selected':''}>Draft</option></select>`:''}<input data-f="in.q" placeholder="Cari informasi…" value="${h(S.f['in.q']||'')}"></div><div id="lst"></div>`;
+ S.re=inLoad;S.dr=inDraw;await inLoad()};
+async function inLoad(){S.d.in=(await A('apiListInfo',{kategori:S.f['in.kt']||'',status:S.f['in.st']||'',q:S.f['in.q']||''})).data;inDraw()}
+function inDraw(){const p=S.user.perm,L=S.d.in,pg=pager('in',L.length,6);
+ $('#lst').innerHTML=L.length?L.slice(pg.s,pg.e).map(i=>`<div class="c"><div class="ph" style="margin:0"><b>${h(i.Judul)}</b><span>${bdg(i.Kategori)} ${i.Status==='Draft'?bdg('Draft'):''}</span></div><div class="mu s">${tgl(i.TanggalTerbit)} · ${h(i.DibuatOleh)}</div><pre>${h(i.Isi)}</pre>${p.ubahData?`<div class="ac"><button class="b s" data-act="iedit" data-id="${h(i.ID)}">Ubah</button><button class="b s d" data-act="idel" data-id="${h(i.ID)}">Hapus</button></div>`:''}</div>`).join('')+pg.html:empty('Belum ada informasi.')}
+
+/* ===== Admin ===== */
+const AT=[['pengurus','Akun Pengurus'],['setting','Pengaturan'],['sistem','Backup & Log']];
+PAGES.admin=async()=>{$('#main').innerHTML=`<div class="ph"><h2>Kontrol Panel Administrator</h2></div><div class="tabs">${AT.map(([k,l])=>`<button class="tab ${S.tab.admin===k?'on':''}" data-act="tab" data-g="admin" data-v="${k}">${l}</button>`).join('')}</div><div id="tb"></div>`;await ADM[S.tab.admin]()};
+const ADM={};
+const PF=(edit)=>[{k:'Nama',l:'Nama',req:1},{k:'Username',l:'Username',req:1,ph:'huruf kecil/angka'},{k:'Jabatan',l:'Jabatan'},{k:'Role',l:'Role',t:'select',o:['Admin','Ketua','Sekretaris','Bendahara']},{k:'Status',l:'Status',t:'select',o:['Aktif','Nonaktif']},{k:'Password',l:edit?'Password baru (kosongkan bila tidak diubah)':'Password (min. 6)',t:'password',req:!edit,w:1}];
+ADM.pengurus=async()=>{const L=(await A('apiListPengurus')).data;S.d.pg=L;
+ $('#tb').innerHTML=`<div class="ph"><span class="mu s">Admin: semua fitur · Ketua: semua kecuali panel admin · Sekretaris: data warga, agenda, informasi · Bendahara: keuangan & verifikasi</span><button class="b p" data-act="padd">+ Akun</button></div>`+tbl([['Nama',x=>`<b>${h(x.Nama)}</b>`],['Username',x=>h(x.Username)],['Jabatan',x=>h(x.Jabatan)],['Role',x=>bdg(x.Role)],['Status',x=>bdg(x.Status)],['',x=>`<button class="b s" data-act="pedit" data-id="${h(x.ID)}">Ubah</button> <button class="b s" data-act="preset" data-id="${h(x.ID)}">Reset PW</button>`]],L)};
+const CF=[{k:'NamaAplikasi',l:'Nama Aplikasi',req:1},{k:'NamaRT',l:'Nama RT',req:1},{k:'AlamatRT',l:'Alamat RT',w:1},{k:'RekeningBank',l:'Bank Tujuan Transfer'},{k:'RekeningNomor',l:'Nomor Rekening'},{k:'RekeningAtasNama',l:'Atas Nama'},{k:'MulaiIuran',l:'Iuran Mulai Ditagih',t:'month'},{k:'PinWargaAktif',l:'PIN Login Warga',t:'select',o:[['TIDAK','Nonaktif (login alamat saja)'],['YA','Aktif (wajib PIN per rumah)']]}];
+ADM.setting=async()=>{const d=(await A('apiGetPengaturan')).data;$('#tb').innerHTML=`<div class="c">${form(CF,d)}<p class="mu s">⚠️ Tanpa PIN, siapa pun yang tahu alamat rumah dapat melihat riwayat iuran rumah itu. Bila PIN diaktifkan, buat PIN tiap rumah di menu Warga → tombol PIN.</p><button class="b p" data-act="savecfg">Simpan Pengaturan</button></div>`};
+ADM.sistem=async()=>{const L=(await A('apiListLog',300)).data;S.d.log=L;$('#tb').innerHTML=`<div class="c"><h3>Backup Database</h3><p class="mu s">Menyalin seluruh spreadsheet ke folder RT07_Backup di Google Drive.</p><button class="b p" data-act="backup">Buat Backup Sekarang</button><div id="bkr"></div></div><h3>Log Aktivitas</h3><div id="lst"></div>`;S.dr=logDraw;logDraw()};
+function logDraw(){const L=S.d.log,pg=pager('log',L.length,15);$('#lst').innerHTML=tbl([['Waktu',x=>h(x.Waktu)],['User',x=>h(x.User)],['Aksi',x=>`<b>${h(x.Aksi)}</b>`],['Detail',x=>h(x.Detail)]],L.slice(pg.s,pg.e))+pg.html}
+function pwdForm(){const F=[{k:'a',l:'Password Lama',t:'password',req:1},{k:'b',l:'Password Baru (min. 6)',t:'password',req:1},{k:'c',l:'Ulangi Password Baru',t:'password',req:1}];
+ modal('Ubah Password',form(F),{onOk:async()=>{const o=read(F);if(o.b!==o.c)throw new Error('Konfirmasi password tidak sama.');const r=await A('apiUbahPasswordSendiri',o.a,o.b);closeM();toast(r.message)}})}
+
+/* ===== Aksi (event delegation) ===== */
+const find=(k,id)=>(S.d[k]||[]).find(x=>x.ID===id);
+const ACT={
+ mclose:closeM,go:d=>go(d.p),gt:d=>{if(d.t)S.tab.kas=d.t;go(d.p)},tab:d=>{S.tab[d.g]=d.v;go(S.page)},pg:d=>{S.pg[d.k]=+d.p;S.dr&&S.dr()},
+ lt:d=>{document.querySelectorAll('[data-act=lt]').forEach(b=>b.classList.toggle('on',b===event.target.closest('[data-act]')));$('#lfw').style.display=d.v==='w'?'':'none';$('#lfp').style.display=d.v==='p'?'':'none'},
+ logout:doLogout,pwd:pwdForm,bayar:d=>openBayar(d.al),chip:d=>{B.sel.has(d.p)?B.sel.delete(d.p):B.sel.add(d.p);drawChips()},
+ riw:d=>riwModal(d.al),bukti:d=>viewBukti(d.k),
+ radd:()=>rForm(),redit:d=>rForm(find('rumah',d.id)),rdet:d=>showRumah(d.id),
+ rdel:d=>{const r=find('rumah',d.id);ask(`Hapus rumah <b>${h(r.Alamat)}</b> beserta seluruh anggota keluarganya? Tidak dapat dibatalkan.`,async()=>{toast((await A('apiDeleteRumah',d.id)).message);PAGES.rumah()})},
+ rpin:d=>{const r=find('rumah',d.id);modal('PIN Rumah '+r.Alamat,`<p class="mu s">PIN 4–6 digit dipakai saat login warga bila fitur PIN diaktifkan di Pengaturan. Kosongkan untuk menghapus PIN.</p><label>PIN baru</label><input id="pinv" inputmode="numeric" maxlength="6" autocomplete="off">`,{onOk:async()=>{const x=await A('apiSetPinRumah',d.id,$('#pinv').value.trim());closeM();toast(x.message);PAGES.rumah()}})},
+ rcsv:()=>csv('rumah.csv',['Alamat','Status Hunian','Pemilik','Penghuni','Kepala Keluarga','Jiwa Tinggal','Anggota','No HP','Kategori Iuran','Keterangan'],rumahFiltered().map(r=>[r.Alamat,r.StatusHunian,r.NamaPemilik,r.NamaPenghuni,r.NamaKepalaKeluarga,r.JumlahTinggal,r.JumlahAnggota,r.NoHP,r.KategoriIuran,r.Keterangan])),
+ wcsv:async()=>{const L=(await A('apiListWarga')).data;csv('warga.csv',['Alamat','Nama','NIK','Hubungan','JK','Tempat Lahir','Tanggal Lahir','Pekerjaan','Status Tinggal','No HP'],L.map(w=>[w.AlamatRumah,w.NamaLengkap,"'"+w.NIK,w.HubunganKeluarga,w.JenisKelamin,w.TempatLahir,w.TanggalLahir,w.Pekerjaan,w.StatusTinggal,w.NoHP]))},
+ wadd:d=>wForm(S.cur.rumah),wedit:d=>wForm(S.cur.rumah,S.cur.anggota.find(w=>w.ID===d.id)),
+ wdel:d=>{const w=S.cur.anggota.find(x=>x.ID===d.id);ask(`Hapus anggota <b>${h(w.NamaLengkap)}</b>?`,async()=>{toast((await A('apiDeleteWarga',d.id)).message);if(S.page==='rumah')PAGES.rumah();showRumah(S.cur.rumah.ID)})},
+ kadd:d=>kForm({Tanggal:today(),Jenis:d.j}),kedit:d=>kForm(S.d.kas.rows.find(x=>x.ID===d.id)),
+ kdel:d=>ask('Hapus transaksi kas ini?',async()=>{toast((await A('apiDeleteKas',d.id)).message);kasLoad(false)}),
+ kcsv:()=>csv('buku-kas.csv',['Tanggal','Jenis','Kategori','Uraian','Nominal','Saldo','Dicatat Oleh'],S.d.kas.rows.map(x=>[x.Tanggal,x.Jenis,x.Kategori,x.Uraian,x.Nominal,x.Saldo,x.DicatatOleh])),
+ vok:d=>ask('Terima pembayaran ini dan catat sebagai pemasukan Buku Kas?',async()=>{toast((await A('apiVerifikasiTransaksi',d.k,'terima','')).message);vLoad()},'Terima'),
+ vno:d=>modal('Tolak Pembayaran','<label>Alasan penolakan *</label><textarea id="vcat" rows="3"></textarea>',{okText:'Tolak',onOk:async()=>{const r=await A('apiVerifikasiTransaksi',d.k,'tolak',$('#vcat').value.trim());closeM();toast(r.message);vLoad()}}),
+ vdel:d=>ask('Hapus transaksi pembayaran ini beserta entri Buku Kas-nya?',async()=>{toast((await A('apiHapusPembayaran',d.k)).message);vLoad()}),
+ wa:d=>copyTxt(S.d.tg[+d.i].pesan),
+ tadd:()=>tForm({Status:'Aktif',KategoriIuran:'Umum'}),tedit:d=>tForm(find('tarif',d.id)),
+ tdel:d=>ask('Hapus tarif ini?',async()=>{toast((await A('apiDeleteTarif',d.id)).message);TABS.tarif()}),
+ aadd:()=>modal('Tambah Agenda',form(AF,{Tanggal:today(),Status:'Akan Datang'}),{onOk:()=>aSave({})}),aedit:d=>{const a=find('ag',d.id);modal('Ubah Agenda',form(AF,a),{onOk:()=>aSave(a)})},
+ adel:d=>ask('Hapus agenda ini?',async()=>{toast((await A('apiDeleteAgenda',d.id)).message);agLoad()}),
+ view:d=>{S.f['ag.v']=d.v;agDraw()},cprev:()=>{S.cal.m--;if(S.cal.m<0){S.cal.m=11;S.cal.y--}agDraw()},cnext:()=>{S.cal.m++;if(S.cal.m>11){S.cal.m=0;S.cal.y++}agDraw()},
+ iadd:()=>modal('Tambah Informasi',form(IF,{Kategori:'Pengumuman',Status:'Publish',TanggalTerbit:today()}),{wide:true,onOk:()=>iSave({})}),iedit:d=>{const i=find('in',d.id);modal('Ubah Informasi',form(IF,i),{wide:true,onOk:()=>iSave(i)})},
+ idel:d=>ask('Hapus informasi ini?',async()=>{toast((await A('apiDeleteInfo',d.id)).message);inLoad()}),
+ padd:()=>modal('Tambah Akun Pengurus',form(PF(false),{Role:'Bendahara',Status:'Aktif'}),{onOk:async()=>{const r=await A('apiSavePengurus',read(PF(false)));closeM();toast(r.message);ADM.pengurus()}}),
+ pedit:d=>{const x=find('pg',d.id);modal('Ubah Akun Pengurus',form(PF(true),x),{onOk:async()=>{const o=read(PF(true));o.ID=x.ID;const r=await A('apiSavePengurus',o);closeM();toast(r.message);ADM.pengurus()}})},
+ preset:d=>{const x=find('pg',d.id);modal('Reset Password '+x.Username,'<label>Password baru (min. 6)</label><input id="rpw" type="password" autocomplete="new-password">',{onOk:async()=>{const r=await A('apiResetPassword',d.id,$('#rpw').value);closeM();toast(r.message)}})},
+ savecfg:async()=>{const r=await A('apiSavePengaturan',read(CF));toast(r.message);const p=await api('apiGetPublicInfo');if(p.success)S.pub=p.data},
+ backup:async()=>{const r=await A('apiBackup');toast(r.message);$('#bkr').innerHTML=`<p><a class="b" target="_blank" rel="noopener" href="${h(r.data.url)}">Buka ${h(r.data.nama)}</a></p>`}
+};
+async function aSave(a){const o=read(AF);if(a.ID)o.ID=a.ID;const r=await A('apiSaveAgenda',o);closeM();toast(r.message);agLoad()}
+async function iSave(i){const o=read(IF);if(i.ID)o.ID=i.ID;const r=await A('apiSaveInfo',o);closeM();toast(r.message);inLoad()}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b||!ACT[b.dataset.act])return;window.event=e;try{await ACT[b.dataset.act](b.dataset)}catch(x){toast(x.message,'er')}});
+let T;
+document.addEventListener('input',e=>{const t=e.target;
+ if(t.id==='bj'){B.j=t.value;B.sel.clear();drawChips();return}
+ if(t.id==='by'){B.y=+t.value;drawChips();return}
+ if(t.id==='bal'){bayarLoad(t.value).catch(x=>toast(x.message,'er'));return}
+ if(t.dataset.yr){loadRw(S.rw.al,t.value,S.rw.sel).catch(x=>toast(x.message,'er'));return}
+ const k=t.dataset.f;if(!k)return;S.f[k]=t.value;S.pg[k.split('.')[0]]=1;if(k.startsWith('ag.'))S.pg.ag=1;
+ clearTimeout(T);T=setTimeout(()=>{if(S.re)Promise.resolve(S.re()).catch(x=>toast(x.message,'er'))},/\.q$/.test(k)?280:0)});
+document.addEventListener('submit',async e=>{e.preventDefault();const f=e.target;const btn=f.querySelector('button');btn.disabled=true;
+ try{if(f.id==='lfw'){if(!$('#lal').value)throw new Error('Pilih alamat rumah.');await doLogin('apiLoginWarga',$('#lal').value,$('#lpin')?$('#lpin').value:'')}
+ else if(f.id==='lfp')await doLogin('apiLoginPengurus',$('#lus').value,$('#lpw').value)}
+ catch(x){toast(x.message,'er');btn.disabled=false}});
+boot();
+</script>
+</body>
+</html>

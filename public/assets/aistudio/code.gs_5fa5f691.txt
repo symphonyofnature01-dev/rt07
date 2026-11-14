@@ -1,0 +1,1299 @@
+/**
+ * ============================================================================
+ *  RT 07 GO DIGITAL  -  CODE.gs  (Backend Google Apps Script)
+ * ============================================================================
+ *  Database : Google Sheets (spreadsheet tempat script ini terpasang)
+ *  Frontend : index.html (memanggil fungsi api* di bawah via google.script.run)
+ *
+ *  LANGKAH CEPAT
+ *  1. Buat Google Sheets baru > Extensions > Apps Script > tempel file ini
+ *     sebagai CODE.gs, dan buat file HTML bernama "index" (index.html).
+ *  2. Project Settings > centang "Show appsscript.json" dan set
+ *     "timeZone": "Asia/Jakarta".
+ *  3. Jalankan setupDatabase() satu kali dan setujui izin akses.
+ *  4. Deploy > New deployment > Web app > Execute as: Me,
+ *     Who has access: Anyone.
+ *  5. Login admin awal: username  admin  /  password  admin123  (SEGERA GANTI).
+ *
+ *  FORMAT BALIKAN SEMUA FUNGSI api*:
+ *     { success: true|false, message: "...", data: ... , code: "SESSION|FORBIDDEN" }
+ *
+ *  DAFTAR FUNGSI YANG BOLEH DIPANGGIL DARI index.html
+ *  (parameter pertama selalu "token" sesi, kecuali fungsi publik)
+ *  ---- Publik / sesi ----
+ *  apiGetPublicInfo()                       apiLoginWarga(alamat, pin)
+ *  apiLoginPengurus(username, password)     apiCekSesi(token)
+ *  apiLogout(token)
+ *  ---- Semua role ----
+ *  apiGetDashboard(token)                   apiGetKeuanganPublik(token)
+ *  apiGetRiwayatIuran(token, tahun, alamat) apiGetFormBayar(token, alamat)
+ *  apiGetBukti(token, kode)                 apiListAgenda(token, filter)
+ *  apiListInfo(token, filter)
+ *  ---- Warga ----
+ *  apiUploadPembayaran(token, payload)
+ *  ---- Pengurus (baca) ----
+ *  apiListRumah(token)  apiGetRumahDetail(token, id)  apiListWarga(token)
+ *  apiListKas(token, filter)  apiListPembayaran(token, filter)
+ *  apiGetMatriks(token, tahun, jenis)  apiGetTunggakan(token)
+ *  apiListTarif(token)  apiGetPengaturan(token)
+ *  ---- Pengurus (tulis; sesuai role) ----
+ *  apiSaveRumah  apiDeleteRumah  apiSetPinRumah(token, id, pin)
+ *  apiSaveWarga  apiDeleteWarga
+ *  apiSaveKas  apiDeleteKas  apiCatatPembayaranManual(token, payload)
+ *  apiVerifikasiTransaksi(token, kode, aksi, catatan)  apiHapusPembayaran(token, kode)
+ *  apiSaveTarif  apiDeleteTarif
+ *  apiSaveAgenda  apiDeleteAgenda  apiSaveInfo  apiDeleteInfo
+ *  ---- Admin ----
+ *  apiListPengurus  apiSavePengurus  apiResetPassword(token, id, passwordBaru)
+ *  apiSavePengaturan(token, obj)  apiBackup(token)  apiListLog(token, limit)
+ *  apiUbahPasswordSendiri(token, lama, baru)   (semua pengurus)
+ * ============================================================================
+ */
+
+// ----------------------------------------------------------------------------
+//  KONSTANTA
+// ----------------------------------------------------------------------------
+var APP = {
+  NAME: 'RT 07 GO DIGITAL',
+  SESSION_SEC: 21600,          // 6 jam
+  MAX_FAIL: 5,
+  LOCK_SEC: 900,               // 15 menit
+  FOLDER_BUKTI: 'RT07_Bukti_Iuran',
+  FOLDER_BACKUP: 'RT07_Backup',
+  MAX_FILE_BYTES: 2 * 1024 * 1024
+};
+
+var SH = {
+  PENGURUS: 'Pengurus', RUMAH: 'Rumah', WARGA: 'Warga', TARIF: 'Tarif',
+  PEMBAYARAN: 'Pembayaran', KAS: 'BukuKas', AGENDA: 'Agenda',
+  INFO: 'Informasi', SETTING: 'Pengaturan', LOG: 'LogAktivitas'
+};
+
+var COLS = {};
+COLS[SH.PENGURUS]   = ['ID','Nama','Username','PasswordHash','Jabatan','Role','Status','DibuatPada'];
+COLS[SH.RUMAH]      = ['ID','Alamat','Blok','Nomor','StatusHunian','NamaPemilik','NamaPenghuni','NamaKepalaKeluarga','JumlahJiwa','NoHP','KategoriIuran','Keterangan','PINHash'];
+COLS[SH.WARGA]      = ['ID','AlamatRumah','NamaLengkap','NIK','HubunganKeluarga','JenisKelamin','TempatLahir','TanggalLahir','Pekerjaan','StatusTinggal','NoHP'];
+COLS[SH.TARIF]      = ['ID','JenisIuran','KategoriIuran','Nominal','Status'];
+COLS[SH.PEMBAYARAN] = ['ID','AlamatRumah','JenisIuran','Periode','Nominal','TanggalBayar','MetodeBayar','BuktiURL','KodeTransaksi','Status','CatatanVerifikator','DiverifikasiOleh','TanggalVerifikasi'];
+COLS[SH.KAS]        = ['ID','Tanggal','Jenis','Kategori','Uraian','Nominal','SumberReferensi','DicatatOleh'];
+COLS[SH.AGENDA]     = ['ID','Judul','Tanggal','Waktu','Lokasi','Deskripsi','Status','DibuatOleh'];
+COLS[SH.INFO]       = ['ID','Judul','Isi','Kategori','TanggalTerbit','Status','DibuatOleh'];
+COLS[SH.SETTING]    = ['Kunci','Nilai'];
+COLS[SH.LOG]        = ['Waktu','User','Aksi','Detail'];
+
+var NUM_COLS = { Nominal: 1, JumlahJiwa: 1 };
+
+var STATUS_HUNIAN = ['Dihuni Pemilik', 'Dikontrak', 'Kosong'];
+var HUBUNGAN      = ['Kepala Keluarga', 'Istri', 'Anak', 'Lainnya'];
+var JK            = ['Laki-laki', 'Perempuan'];
+var STATUS_TINGGAL = ['Tinggal', 'Tidak Tinggal'];
+var ROLES         = ['Admin', 'Ketua', 'Sekretaris', 'Bendahara'];
+var KAT_INFO      = ['Pengumuman', 'Keuangan', 'Keamanan', 'Lainnya'];
+var STATUS_AGENDA = ['Akan Datang', 'Selesai', 'Dibatalkan'];
+var BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+var PENGURUS_ROLES = ['Admin', 'Ketua', 'Sekretaris', 'Bendahara'];
+var ALL_ROLES      = ['Admin', 'Ketua', 'Sekretaris', 'Bendahara', 'Warga'];
+var DATA_ROLES     = ['Admin', 'Ketua', 'Sekretaris'];   // kelola data warga, agenda, informasi
+var KEU_ROLES      = ['Admin', 'Ketua', 'Bendahara'];    // kelola keuangan & verifikasi
+var ADMIN_ROLES    = ['Admin'];
+
+var DEFAULT_SETTINGS = {
+  NamaAplikasi: 'RT 07 GO DIGITAL',
+  NamaRT: 'RT 07',
+  AlamatRT: 'Isi alamat RT di Pengaturan',
+  PinWargaAktif: 'TIDAK',
+  RekeningBank: 'Isi nama bank',
+  RekeningNomor: '0000000000',
+  RekeningAtasNama: 'Bendahara RT 07',
+  MulaiIuran: new Date().getFullYear() + '-01',
+  FolderBuktiId: ''
+};
+var EDITABLE_SETTINGS = ['NamaAplikasi','NamaRT','AlamatRT','PinWargaAktif','RekeningBank','RekeningNomor','RekeningAtasNama','MulaiIuran'];
+
+// ----------------------------------------------------------------------------
+//  ENTRY POINT
+// ----------------------------------------------------------------------------
+function doGet(e) {
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle(APP.NAME)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ----------------------------------------------------------------------------
+//  HELPER UMUM
+// ----------------------------------------------------------------------------
+function ok_(data, message) { return { success: true, message: message || '', data: data === undefined ? null : data }; }
+function fail_(message, code) { return { success: false, message: message || 'Terjadi kesalahan.', code: code || 'ERROR', data: null }; }
+
+function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+function sheet_(name) {
+  var sh = ss_().getSheetByName(name);
+  if (!sh) throw new Error('Sheet "' + name + '" belum ada. Jalankan setupDatabase() terlebih dahulu.');
+  return sh;
+}
+function tz_() { return Session.getScriptTimeZone() || 'Asia/Jakarta'; }
+function fmtDate_(d, p) { return Utilities.formatDate(d, tz_(), p); }
+function today_() { return fmtDate_(new Date(), 'yyyy-MM-dd'); }
+function nowStr_() { return fmtDate_(new Date(), 'yyyy-MM-dd HH:mm:ss'); }
+function periodeNow_() { return fmtDate_(new Date(), 'yyyy-MM'); }
+function clean_(v) { return String(v === null || v === undefined ? '' : v).trim().slice(0, 2000); }
+function toNum_(v) { var n = Number(String(v === null || v === undefined ? '' : v).replace(/[^\d]/g, '')); return isNaN(n) ? 0 : n; }
+function inArr_(arr, v) { return arr.indexOf(v) >= 0; }
+function natCmp_(a, b) { return String(a).localeCompare(String(b), 'id', { numeric: true, sensitivity: 'base' }); }
+function normAlamat_(a) { return String(a === null || a === undefined ? '' : a).trim().toUpperCase().replace(/\s+/g, ''); }
+function isDate_(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime()); }
+function isPeriode_(s) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(s); }
+function isTime_(s) { return /^([01]\d|2[0-3]):[0-5]\d$/.test(s); }
+function rp_(n) { return 'Rp ' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+function periodeLabel_(p) { return BULAN[Number(p.slice(5, 7)) - 1] + ' ' + p.slice(0, 4); }
+function rand_(n) { var c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = ''; for (var i = 0; i < n; i++) s += c.charAt(Math.floor(Math.random() * c.length)); return s; }
+function genId_(prefix) { return prefix + '-' + fmtDate_(new Date(), 'yyMMddHHmmss') + '-' + rand_(4); }
+function genKode_() { return 'TRX-' + fmtDate_(new Date(), 'yyMMdd') + '-' + rand_(5); }
+
+// ----------------------------------------------------------------------------
+//  AKSES SHEET (CRUD GENERIK)
+// ----------------------------------------------------------------------------
+function cell_(v, h) {
+  if (v instanceof Date) {
+    if (v.getFullYear() < 1950) return fmtDate_(v, 'HH:mm');
+    if (h === 'Periode') return fmtDate_(v, 'yyyy-MM');
+    if (h === 'DibuatPada' || h === 'TanggalVerifikasi' || h === 'Waktu') return fmtDate_(v, 'yyyy-MM-dd HH:mm:ss');
+    return fmtDate_(v, 'yyyy-MM-dd');
+  }
+  if (NUM_COLS[h]) return Number(v) || 0;
+  if (typeof v === 'string') {
+    if (/^'[=+\-@]/.test(v)) return v.slice(1);   // buang apostrof pelindung formula
+    return v;
+  }
+  return v === null || v === undefined ? '' : v;
+}
+function out_(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string' && /^[=+\-@]/.test(v)) return "'" + v;   // cegah injeksi formula
+  return v;
+}
+function readAll_(name) {
+  var sh = sheet_(name), last = sh.getLastRow(), cols = COLS[name];
+  if (last < 2) return [];
+  var vals = sh.getRange(2, 1, last - 1, cols.length).getValues(), out = [];
+  for (var i = 0; i < vals.length; i++) {
+    var r = vals[i];
+    if (r.join('') === '') continue;
+    var o = { _row: i + 2 };
+    for (var c = 0; c < cols.length; c++) o[cols[c]] = cell_(r[c], cols[c]);
+    out.push(o);
+  }
+  return out;
+}
+function insert_(name, obj) {
+  var row = COLS[name].map(function (h) { return out_(obj[h]); });
+  sheet_(name).appendRow(row);
+  return obj;
+}
+function update_(name, rowNum, obj) {
+  var cols = COLS[name], rng = sheet_(name).getRange(rowNum, 1, 1, cols.length), cur = rng.getValues()[0];
+  var nv = cols.map(function (h, i) { return Object.prototype.hasOwnProperty.call(obj, h) ? out_(obj[h]) : cur[i]; });
+  rng.setValues([nv]);
+}
+function removeRow_(name, rowNum) { sheet_(name).deleteRow(rowNum); }
+function byId_(rows, id) { for (var i = 0; i < rows.length; i++) if (rows[i].ID === id) return rows[i]; return null; }
+function strip_(o, keys) { var c = {}; for (var k in o) if (k !== '_row' && keys.indexOf(k) < 0) c[k] = o[k]; return c; }
+function pickAll_(rows, hide) { return rows.map(function (r) { return strip_(r, hide || []); }); }
+
+// ----------------------------------------------------------------------------
+//  PENGATURAN
+// ----------------------------------------------------------------------------
+function settings_() {
+  var o = {}, k;
+  for (k in DEFAULT_SETTINGS) o[k] = DEFAULT_SETTINGS[k];
+  readAll_(SH.SETTING).forEach(function (r) { o[r.Kunci] = r.Nilai; });
+  return o;
+}
+function setSetting_(key, val) {
+  var rows = readAll_(SH.SETTING), f = null;
+  rows.forEach(function (r) { if (r.Kunci === key) f = r; });
+  if (f) update_(SH.SETTING, f._row, { Nilai: val }); else insert_(SH.SETTING, { Kunci: key, Nilai: val });
+}
+
+// ----------------------------------------------------------------------------
+//  KEAMANAN: HASH, SESI, LOG
+// ----------------------------------------------------------------------------
+function hash_(salt, pw) {
+  var d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + pw, Utilities.Charset.UTF_8);
+  return d.map(function (b) { return ('0' + (b & 0xFF).toString(16)).slice(-2); }).join('');
+}
+function makePw_(pw) { var salt = Utilities.getUuid().replace(/-/g, '').slice(0, 16); return salt + '$' + hash_(salt, pw); }
+function checkPw_(pw, stored) {
+  if (!stored || String(stored).indexOf('$') < 0) return false;
+  var parts = String(stored).split('$');
+  return hash_(parts[0], pw) === parts[1];
+}
+function newSession_(data) {
+  var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  CacheService.getScriptCache().put('S_' + token, JSON.stringify(data), APP.SESSION_SEC);
+  return token;
+}
+function getSession_(token) {
+  if (!token || typeof token !== 'string') return null;
+  var cache = CacheService.getScriptCache(), raw = cache.get('S_' + token);
+  if (!raw) return null;
+  var s = JSON.parse(raw);
+  if (s.type === 'pengurus') {
+    var p = byId_(readAll_(SH.PENGURUS), s.id);
+    if (!p || p.Status !== 'Aktif') { cache.remove('S_' + token); return null; }
+    s.role = p.Role; s.nama = p.Nama; s.jabatan = p.Jabatan;
+  }
+  cache.put('S_' + token, JSON.stringify(s), APP.SESSION_SEC);
+  return s;
+}
+function checkLock_(key) {
+  var n = Number(CacheService.getScriptCache().get('F_' + key)) || 0;
+  if (n >= APP.MAX_FAIL) throw new Error('Terlalu banyak percobaan gagal. Coba lagi dalam 15 menit.');
+}
+function addFail_(key) {
+  var c = CacheService.getScriptCache(), n = (Number(c.get('F_' + key)) || 0) + 1;
+  c.put('F_' + key, String(n), APP.LOCK_SEC);
+}
+function clearFail_(key) { CacheService.getScriptCache().remove('F_' + key); }
+
+function log_(user, aksi, detail) {
+  try { insert_(SH.LOG, { Waktu: nowStr_(), User: user, Aksi: aksi, Detail: String(detail || '').slice(0, 500) }); } catch (e) { console.error(e); }
+}
+
+function perm_(role) {
+  return {
+    pengurus: role !== 'Warga',
+    ubahData: inArr_(DATA_ROLES, role),        // rumah, warga, agenda, informasi
+    ubahKeuangan: inArr_(KEU_ROLES, role),     // kas, verifikasi, tarif, catat bayar
+    admin: role === 'Admin'
+  };
+}
+function userView_(s) {
+  return { type: s.type, id: s.id || '', nama: s.nama, role: s.role, jabatan: s.jabatan || '', alamat: s.alamat || '', perm: perm_(s.role) };
+}
+
+/** Pembungkus: validasi sesi + role + kunci tulis + tangkap error. */
+function run_(token, roles, write, fn) {
+  var lock = null;
+  try {
+    var s = getSession_(token);
+    if (!s) return fail_('Sesi berakhir. Silakan login kembali.', 'SESSION');
+    if (roles && roles.indexOf(s.role) < 0) return fail_('Anda tidak memiliki hak akses untuk fitur ini.', 'FORBIDDEN');
+    if (write) { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+    return fn(s);
+  } catch (e) {
+    console.error(e && e.stack ? e.stack : e);
+    return fail_(e && e.message ? e.message : String(e));
+  } finally {
+    if (lock) { try { lock.releaseLock(); } catch (x) {} }
+  }
+}
+
+// ----------------------------------------------------------------------------
+//  LOGIN / LOGOUT
+// ----------------------------------------------------------------------------
+function apiGetPublicInfo() {
+  try {
+    var st = settings_();
+    var alamat = readAll_(SH.RUMAH).map(function (r) { return r.Alamat; }).sort(natCmp_);
+    return ok_({ namaAplikasi: st.NamaAplikasi, namaRT: st.NamaRT, alamatRT: st.AlamatRT, pinWargaAktif: st.PinWargaAktif === 'YA', daftarAlamat: alamat });
+  } catch (e) { return fail_(e.message); }
+}
+
+function apiLoginWarga(alamat, pin) {
+  try {
+    var a = normAlamat_(alamat);
+    if (!a) throw new Error('Pilih atau isi alamat rumah.');
+    checkLock_('W' + a);
+    var rumah = null;
+    readAll_(SH.RUMAH).forEach(function (r) { if (normAlamat_(r.Alamat) === a) rumah = r; });
+    if (!rumah) { addFail_('W' + a); throw new Error('Alamat rumah tidak ditemukan.'); }
+    if (settings_().PinWargaAktif === 'YA') {
+      if (!rumah.PINHash) throw new Error('PIN rumah ini belum dibuat. Hubungi pengurus RT.');
+      if (!checkPw_(String(pin || ''), rumah.PINHash)) { addFail_('W' + a); throw new Error('PIN salah.'); }
+    }
+    clearFail_('W' + a);
+    var sess = { type: 'warga', role: 'Warga', alamat: rumah.Alamat, nama: 'Rumah ' + rumah.Alamat };
+    var token = newSession_(sess);
+    log_(sess.nama, 'LOGIN', 'Login warga');
+    return ok_({ token: token, user: userView_(sess) }, 'Login berhasil');
+  } catch (e) { return fail_(e.message); }
+}
+
+function apiLoginPengurus(username, password) {
+  try {
+    var u = clean_(username).toLowerCase();
+    if (!u || !password) throw new Error('Username dan password wajib diisi.');
+    checkLock_('P' + u);
+    var p = null;
+    readAll_(SH.PENGURUS).forEach(function (x) { if (String(x.Username).toLowerCase() === u) p = x; });
+    if (!p || !checkPw_(String(password), p.PasswordHash)) { addFail_('P' + u); throw new Error('Username atau password salah.'); }
+    if (p.Status !== 'Aktif') throw new Error('Akun dinonaktifkan. Hubungi Admin.');
+    clearFail_('P' + u);
+    var sess = { type: 'pengurus', id: p.ID, role: p.Role, nama: p.Nama, jabatan: p.Jabatan };
+    var token = newSession_(sess);
+    log_(p.Nama, 'LOGIN', 'Login pengurus (' + p.Role + ')');
+    return ok_({ token: token, user: userView_(sess) }, 'Login berhasil');
+  } catch (e) { return fail_(e.message); }
+}
+
+function apiCekSesi(token) {
+  try {
+    var s = getSession_(token);
+    if (!s) return fail_('Sesi berakhir.', 'SESSION');
+    return ok_({ user: userView_(s) });
+  } catch (e) { return fail_(e.message); }
+}
+
+function apiLogout(token) {
+  try {
+    if (token) { var s = getSession_(token); if (s) log_(s.nama, 'LOGOUT', ''); CacheService.getScriptCache().remove('S_' + token); }
+    return ok_(null, 'Anda telah keluar.');
+  } catch (e) { return fail_(e.message); }
+}
+
+// ----------------------------------------------------------------------------
+//  LOGIKA IURAN (tarif, indeks pembayaran, tunggakan)
+// ----------------------------------------------------------------------------
+function findRumah_(alamat) {
+  var a = normAlamat_(alamat), f = null;
+  readAll_(SH.RUMAH).forEach(function (r) { if (normAlamat_(r.Alamat) === a) f = r; });
+  return f;
+}
+function tarifFor_(tarifRows, jenis, kategori) {
+  var exact = 0, umum = 0;
+  tarifRows.forEach(function (t) {
+    if (t.Status !== 'Aktif' || t.JenisIuran !== jenis) return;
+    if (t.KategoriIuran === kategori) exact = t.Nominal;
+    if (t.KategoriIuran === 'Umum') umum = t.Nominal;
+  });
+  return exact || umum || 0;
+}
+function jenisAktif_(tarifRows) {
+  var seen = {}, out = [];
+  tarifRows.forEach(function (t) { if (t.Status === 'Aktif' && !seen[t.JenisIuran]) { seen[t.JenisIuran] = 1; out.push(t.JenisIuran); } });
+  return out;
+}
+function payIndex_(pays) {
+  var idx = {};
+  pays.forEach(function (p) {
+    if (p.Status === 'Ditolak') return;
+    var k = p.AlamatRumah + '|' + p.JenisIuran + '|' + p.Periode;
+    if (!idx[k] || p.Status === 'Terverifikasi') idx[k] = p.Status;
+  });
+  return idx;
+}
+function periodeList_(start, end) {
+  var out = [], y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7));
+  while (out.length < 600) {
+    var p = y + '-' + ('0' + m).slice(-2);
+    if (p > end) break;
+    out.push(p); m++; if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+function startPeriode_(st) { return isPeriode_(st.MulaiIuran) ? st.MulaiIuran : (new Date().getFullYear() + '-01'); }
+
+/** Tunggakan satu rumah sampai bulan berjalan. Status "menunggu verifikasi" tidak dihitung tunggakan. */
+function tunggakanRumah_(r, idx, tarif, start, end) {
+  var items = [], pers = periodeList_(start, end);
+  jenisAktif_(tarif).forEach(function (j) {
+    var nom = tarifFor_(tarif, j, r.KategoriIuran || 'Umum');
+    if (!nom) return;
+    var miss = pers.filter(function (p) { return !idx[r.Alamat + '|' + j + '|' + p]; });
+    if (miss.length) items.push({ jenis: j, nominal: nom, periode: miss, jumlah: miss.length, subtotal: nom * miss.length });
+  });
+  return items;
+}
+function groupPay_(rows) {
+  var m = {}, order = [];
+  rows.forEach(function (p) {
+    var k = p.KodeTransaksi || p.ID;
+    if (!m[k]) {
+      m[k] = { kode: k, alamat: p.AlamatRumah, jenis: p.JenisIuran, periode: [], ids: [], total: 0, tanggalBayar: p.TanggalBayar,
+               metode: p.MetodeBayar, adaBukti: !!p.BuktiURL, status: p.Status, catatan: p.CatatanVerifikator,
+               diverifikasiOleh: p.DiverifikasiOleh, tanggalVerifikasi: p.TanggalVerifikasi };
+      order.push(k);
+    }
+    m[k].periode.push(p.Periode); m[k].ids.push(p.ID); m[k].total += p.Nominal;
+  });
+  return order.map(function (k) { m[k].periode.sort(); return m[k]; });
+}
+function addKasFromPayment_(p, user) {
+  insert_(SH.KAS, {
+    ID: genId_('KAS'), Tanggal: p.TanggalBayar || today_(), Jenis: 'Pemasukan', Kategori: 'Iuran ' + p.JenisIuran,
+    Uraian: 'Iuran ' + p.JenisIuran + ' ' + periodeLabel_(p.Periode) + ' - ' + p.AlamatRumah,
+    Nominal: p.Nominal, SumberReferensi: p.ID, DicatatOleh: user
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  RINGKASAN KAS
+// ----------------------------------------------------------------------------
+function kasSummary_(kas) {
+  var nowP = periodeNow_(), saldo = 0, tin = 0, tout = 0, bin = 0, bout = 0, map = {};
+  kas.forEach(function (k) {
+    var p = String(k.Tanggal).slice(0, 7); if (!map[p]) map[p] = { masuk: 0, keluar: 0 };
+    if (k.Jenis === 'Pemasukan') { saldo += k.Nominal; tin += k.Nominal; map[p].masuk += k.Nominal; if (p === nowP) bin += k.Nominal; }
+    else { saldo -= k.Nominal; tout += k.Nominal; map[p].keluar += k.Nominal; if (p === nowP) bout += k.Nominal; }
+  });
+  var series = [], now = new Date();
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1), p2 = fmtDate_(d, 'yyyy-MM');
+    series.push({ periode: p2, label: BULAN[d.getMonth()].slice(0, 3) + ' ' + String(d.getFullYear()).slice(2),
+                  masuk: (map[p2] || {}).masuk || 0, keluar: (map[p2] || {}).keluar || 0 });
+  }
+  return { saldo: saldo, totalMasuk: tin, totalKeluar: tout, bulanMasuk: bin, bulanKeluar: bout, series: series };
+}
+function agendaView_(a) {
+  var o = strip_(a, []);
+  o.StatusTampil = (a.Status === 'Akan Datang' && a.Tanggal < today_()) ? 'Selesai' : a.Status;
+  return o;
+}
+function infoView_(i) { return strip_(i, []); }
+
+// ----------------------------------------------------------------------------
+//  DASHBOARD
+// ----------------------------------------------------------------------------
+function apiGetDashboard(token) {
+  return run_(token, ALL_ROLES, false, function (s) {
+    var st = settings_(), kas = readAll_(SH.KAS), sum = kasSummary_(kas);
+    var agenda = readAll_(SH.AGENDA).map(agendaView_).filter(function (a) { return a.StatusTampil === 'Akan Datang'; })
+      .sort(function (a, b) { return (a.Tanggal + (a.Waktu || '')).localeCompare(b.Tanggal + (b.Waktu || '')); }).slice(0, 4);
+    var info = readAll_(SH.INFO).filter(function (i) { return i.Status === 'Publish'; })
+      .sort(function (a, b) { return String(b.TanggalTerbit).localeCompare(String(a.TanggalTerbit)); }).slice(0, 4).map(infoView_);
+    var tarif = readAll_(SH.TARIF), pays = readAll_(SH.PEMBAYARAN), idx = payIndex_(pays);
+    var start = startPeriode_(st), end = periodeNow_();
+    var data = { role: s.role, namaRT: st.NamaRT, saldo: sum.saldo, bulanIni: { masuk: sum.bulanMasuk, keluar: sum.bulanKeluar },
+                 series: sum.series, agenda: agenda, info: info };
+
+    if (s.type === 'warga') {
+      var r = findRumah_(s.alamat);
+      if (!r) throw new Error('Data rumah tidak ditemukan.');
+      var tg = tunggakanRumah_(r, idx, tarif, start, end), tb = 0, tn = 0;
+      tg.forEach(function (i) { tb += i.jumlah; tn += i.subtotal; });
+      var menunggu = groupPay_(pays.filter(function (p) { return p.AlamatRumah === r.Alamat && p.Status === 'Menunggu Verifikasi'; })).length;
+      data.rumah = { alamat: r.Alamat, statusHunian: r.StatusHunian };
+      data.iuran = { lunas: tg.length === 0, tunggakan: tg, totalBulan: tb, totalNominal: tn, menunggu: menunggu };
+    } else {
+      var rumah = readAll_(SH.RUMAH), warga = readAll_(SH.WARGA), per = {};
+      STATUS_HUNIAN.forEach(function (x) { per[x] = 0; });
+      rumah.forEach(function (r2) { per[r2.StatusHunian] = (per[r2.StatusHunian] || 0) + 1; });
+      var menunggak = 0, totalTg = 0;
+      rumah.forEach(function (r2) {
+        var t = tunggakanRumah_(r2, idx, tarif, start, end);
+        if (t.length) { menunggak++; t.forEach(function (i) { totalTg += i.subtotal; }); }
+      });
+      var tinggal = warga.filter(function (w) { return w.StatusTinggal === 'Tinggal'; }).length;
+      data.ringkas = {
+        totalRumah: rumah.length, totalWarga: warga.length, wargaTinggal: tinggal, perStatus: per,
+        menungguVerifikasi: groupPay_(pays.filter(function (p) { return p.Status === 'Menunggu Verifikasi'; })).length,
+        rumahMenunggak: menunggak, totalTunggakan: totalTg, totalPemasukan: sum.totalMasuk, totalPengeluaran: sum.totalKeluar
+      };
+    }
+    return ok_(data);
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  DATA RUMAH
+// ----------------------------------------------------------------------------
+function pubRumah_(r, wargaRows) {
+  var o = strip_(r, ['PINHash']);
+  o.PINSet = !!r.PINHash;
+  var m = wargaRows.filter(function (w) { return w.AlamatRumah === r.Alamat; });
+  o.JumlahAnggota = m.length;
+  o.JumlahTinggal = m.filter(function (w) { return w.StatusTinggal === 'Tinggal'; }).length;
+  return o;
+}
+function recalcRumah_(alamat) {
+  var r = findRumah_(alamat); if (!r) return;
+  var m = readAll_(SH.WARGA).filter(function (w) { return w.AlamatRumah === r.Alamat; });
+  var kepala = '', tinggal = 0;
+  m.forEach(function (w) { if (w.HubunganKeluarga === 'Kepala Keluarga') kepala = w.NamaLengkap; if (w.StatusTinggal === 'Tinggal') tinggal++; });
+  update_(SH.RUMAH, r._row, { NamaKepalaKeluarga: kepala, JumlahJiwa: tinggal });
+}
+
+function apiListRumah(token) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    var w = readAll_(SH.WARGA);
+    var list = readAll_(SH.RUMAH).sort(function (a, b) { return natCmp_(a.Alamat, b.Alamat); }).map(function (r) { return pubRumah_(r, w); });
+    return ok_(list);
+  });
+}
+
+function apiGetRumahDetail(token, id) {
+  return run_(token, PENGURUS_ROLES, false, function (s) {
+    var w = readAll_(SH.WARGA), r = byId_(readAll_(SH.RUMAH), id);
+    if (!r) throw new Error('Rumah tidak ditemukan.');
+    var anggota = w.filter(function (x) { return x.AlamatRumah === r.Alamat; }).map(function (x) {
+      var o = strip_(x, []);
+      if (s.role === 'Bendahara' && o.NIK) o.NIK = '************' + String(o.NIK).slice(-4);
+      return o;
+    });
+    var urut = { 'Kepala Keluarga': 0, 'Istri': 1, 'Anak': 2, 'Lainnya': 3 };
+    anggota.sort(function (a, b) { return urut[a.HubunganKeluarga] - urut[b.HubunganKeluarga]; });
+    return ok_({ rumah: pubRumah_(r, w), anggota: anggota });
+  });
+}
+
+function apiSaveRumah(token, obj) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    obj = obj || {};
+    var alamat = normAlamat_(obj.Alamat);
+    if (!alamat) throw new Error('Alamat rumah wajib diisi.');
+    if (!/^[A-Z0-9\-\.]+(\/[A-Z0-9\-\.]+)?$/.test(alamat)) throw new Error('Format alamat tidak valid (contoh: A4/1).');
+    var status = clean_(obj.StatusHunian);
+    if (!inArr_(STATUS_HUNIAN, status)) throw new Error('Status hunian tidak valid.');
+    var pemilik = clean_(obj.NamaPemilik), penghuni = clean_(obj.NamaPenghuni);
+    if (status === 'Dihuni Pemilik') { if (!pemilik) throw new Error('Nama pemilik wajib diisi.'); penghuni = pemilik; }
+    if (status === 'Dikontrak' && !penghuni) throw new Error('Nama penghuni (pengontrak) wajib diisi.');
+    if (status === 'Kosong') { if (!pemilik) throw new Error('Nama pemilik wajib diisi.'); penghuni = ''; }
+    var rows = readAll_(SH.RUMAH);
+    var dup = rows.filter(function (r) { return normAlamat_(r.Alamat) === alamat && r.ID !== obj.ID; });
+    if (dup.length) throw new Error('Alamat ' + alamat + ' sudah terdaftar.');
+    var parts = alamat.split('/');
+    var data = {
+      Alamat: alamat, Blok: parts[0], Nomor: parts[1] || '', StatusHunian: status, NamaPemilik: pemilik, NamaPenghuni: penghuni,
+      NoHP: clean_(obj.NoHP).replace(/[^\d+]/g, ''), KategoriIuran: clean_(obj.KategoriIuran) || 'Umum', Keterangan: clean_(obj.Keterangan)
+    };
+    if (obj.ID) {
+      var ex = byId_(rows, obj.ID); if (!ex) throw new Error('Data rumah tidak ditemukan.');
+      if (ex.Alamat !== alamat) throw new Error('Alamat tidak dapat diubah. Hapus lalu buat rumah baru bila salah penulisan.');
+      update_(SH.RUMAH, ex._row, data);
+      // rumah kosong -> semua anggota "Tidak Tinggal"
+      if (status === 'Kosong') {
+        readAll_(SH.WARGA).forEach(function (w) { if (w.AlamatRumah === alamat && w.StatusTinggal !== 'Tidak Tinggal') update_(SH.WARGA, w._row, { StatusTinggal: 'Tidak Tinggal' }); });
+      }
+      recalcRumah_(alamat);
+      log_(s.nama, 'UBAH_RUMAH', alamat);
+      return ok_({ ID: ex.ID }, 'Data rumah diperbarui.');
+    }
+    data.ID = genId_('RMH'); data.NamaKepalaKeluarga = ''; data.JumlahJiwa = 0; data.PINHash = '';
+    insert_(SH.RUMAH, data);
+    log_(s.nama, 'TAMBAH_RUMAH', alamat);
+    return ok_({ ID: data.ID }, 'Rumah ' + alamat + ' ditambahkan.');
+  });
+}
+
+function apiDeleteRumah(token, id) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    var r = byId_(readAll_(SH.RUMAH), id);
+    if (!r) throw new Error('Rumah tidak ditemukan.');
+    var adaBayar = readAll_(SH.PEMBAYARAN).some(function (p) { return p.AlamatRumah === r.Alamat; });
+    if (adaBayar) throw new Error('Rumah tidak dapat dihapus karena sudah memiliki riwayat pembayaran iuran.');
+    var w = readAll_(SH.WARGA).filter(function (x) { return x.AlamatRumah === r.Alamat; }).sort(function (a, b) { return b._row - a._row; });
+    w.forEach(function (x) { removeRow_(SH.WARGA, x._row); });
+    removeRow_(SH.RUMAH, byId_(readAll_(SH.RUMAH), id)._row);
+    log_(s.nama, 'HAPUS_RUMAH', r.Alamat);
+    return ok_(null, 'Rumah ' + r.Alamat + ' beserta anggota keluarganya dihapus.');
+  });
+}
+
+function apiSetPinRumah(token, id, pin) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    var r = byId_(readAll_(SH.RUMAH), id);
+    if (!r) throw new Error('Rumah tidak ditemukan.');
+    pin = clean_(pin);
+    if (pin === '') { update_(SH.RUMAH, r._row, { PINHash: '' }); log_(s.nama, 'HAPUS_PIN', r.Alamat); return ok_(null, 'PIN rumah ' + r.Alamat + ' dihapus.'); }
+    if (!/^\d{4,6}$/.test(pin)) throw new Error('PIN harus 4 sampai 6 digit angka.');
+    update_(SH.RUMAH, r._row, { PINHash: makePw_(pin) });
+    log_(s.nama, 'SET_PIN', r.Alamat);
+    return ok_(null, 'PIN rumah ' + r.Alamat + ' disimpan.');
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  DATA WARGA
+// ----------------------------------------------------------------------------
+function apiListWarga(token) {
+  return run_(token, DATA_ROLES, false, function () {
+    var list = readAll_(SH.WARGA).sort(function (a, b) { return natCmp_(a.AlamatRumah, b.AlamatRumah) || natCmp_(a.NamaLengkap, b.NamaLengkap); });
+    return ok_(pickAll_(list));
+  });
+}
+
+function apiSaveWarga(token, obj) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    obj = obj || {};
+    var rumah = findRumah_(obj.AlamatRumah);
+    if (!rumah) throw new Error('Alamat rumah tidak ditemukan. Tambahkan rumah terlebih dahulu.');
+    var nama = clean_(obj.NamaLengkap); if (!nama) throw new Error('Nama lengkap wajib diisi.');
+    var nik = clean_(obj.NIK).replace(/\s/g, '');
+    if (!/^\d{16}$/.test(nik)) throw new Error('NIK harus 16 digit angka.');
+    var hub = clean_(obj.HubunganKeluarga); if (!inArr_(HUBUNGAN, hub)) throw new Error('Hubungan keluarga tidak valid.');
+    var jk = clean_(obj.JenisKelamin); if (jk && !inArr_(JK, jk)) throw new Error('Jenis kelamin tidak valid.');
+    var tgl = clean_(obj.TanggalLahir); if (tgl && !isDate_(tgl)) throw new Error('Tanggal lahir tidak valid (yyyy-mm-dd).');
+    var tinggal = clean_(obj.StatusTinggal) || (rumah.StatusHunian === 'Kosong' ? 'Tidak Tinggal' : 'Tinggal');
+    if (!inArr_(STATUS_TINGGAL, tinggal)) throw new Error('Status tinggal tidak valid.');
+    var all = readAll_(SH.WARGA);
+    if (all.some(function (w) { return w.NIK === nik && w.ID !== obj.ID; })) throw new Error('NIK sudah terdaftar pada warga lain.');
+    if (hub === 'Kepala Keluarga' && all.some(function (w) { return w.AlamatRumah === rumah.Alamat && w.HubunganKeluarga === 'Kepala Keluarga' && w.ID !== obj.ID; }))
+      throw new Error('Rumah ' + rumah.Alamat + ' sudah memiliki Kepala Keluarga.');
+    var data = { AlamatRumah: rumah.Alamat, NamaLengkap: nama, NIK: nik, HubunganKeluarga: hub, JenisKelamin: jk, TempatLahir: clean_(obj.TempatLahir),
+                 TanggalLahir: tgl, Pekerjaan: clean_(obj.Pekerjaan), StatusTinggal: tinggal, NoHP: clean_(obj.NoHP).replace(/[^\d+]/g, '') };
+    if (obj.ID) {
+      var ex = byId_(all, obj.ID); if (!ex) throw new Error('Data warga tidak ditemukan.');
+      update_(SH.WARGA, ex._row, data);
+      recalcRumah_(rumah.Alamat); if (ex.AlamatRumah !== rumah.Alamat) recalcRumah_(ex.AlamatRumah);
+      log_(s.nama, 'UBAH_WARGA', nama + ' (' + rumah.Alamat + ')');
+      return ok_({ ID: ex.ID }, 'Data warga diperbarui.');
+    }
+    data.ID = genId_('WRG');
+    insert_(SH.WARGA, data);
+    recalcRumah_(rumah.Alamat);
+    log_(s.nama, 'TAMBAH_WARGA', nama + ' (' + rumah.Alamat + ')');
+    return ok_({ ID: data.ID }, 'Warga ditambahkan.');
+  });
+}
+
+function apiDeleteWarga(token, id) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    var w = byId_(readAll_(SH.WARGA), id);
+    if (!w) throw new Error('Data warga tidak ditemukan.');
+    removeRow_(SH.WARGA, w._row);
+    recalcRumah_(w.AlamatRumah);
+    log_(s.nama, 'HAPUS_WARGA', w.NamaLengkap + ' (' + w.AlamatRumah + ')');
+    return ok_(null, 'Warga dihapus.');
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  BUKU KAS
+// ----------------------------------------------------------------------------
+function apiListKas(token, f) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    f = f || {};
+    var kas = readAll_(SH.KAS).sort(function (a, b) { return String(a.Tanggal).localeCompare(String(b.Tanggal)) || a._row - b._row; });
+    var saldo = 0, kategori = {};
+    kas.forEach(function (k) { saldo += k.Jenis === 'Pemasukan' ? k.Nominal : -k.Nominal; k.Saldo = saldo; kategori[k.Kategori] = 1; });
+    var q = clean_(f.q).toLowerCase();
+    var rows = kas.filter(function (k) {
+      if (f.dari && k.Tanggal < f.dari) return false;
+      if (f.sampai && k.Tanggal > f.sampai) return false;
+      if (f.jenis && k.Jenis !== f.jenis) return false;
+      if (f.kategori && k.Kategori !== f.kategori) return false;
+      if (q && (k.Uraian + ' ' + k.Kategori).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var tin = 0, tout = 0;
+    rows.forEach(function (k) { if (k.Jenis === 'Pemasukan') tin += k.Nominal; else tout += k.Nominal; });
+    return ok_({ rows: pickAll_(rows), totalMasuk: tin, totalKeluar: tout, selisih: tin - tout, saldoAkhir: saldo, kategori: Object.keys(kategori).sort() });
+  });
+}
+
+function apiSaveKas(token, obj) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    obj = obj || {};
+    var tgl = clean_(obj.Tanggal); if (!isDate_(tgl)) throw new Error('Tanggal tidak valid.');
+    var jenis = clean_(obj.Jenis); if (jenis !== 'Pemasukan' && jenis !== 'Pengeluaran') throw new Error('Jenis harus Pemasukan atau Pengeluaran.');
+    var kat = clean_(obj.Kategori); if (!kat) throw new Error('Kategori wajib diisi.');
+    var ur = clean_(obj.Uraian); if (!ur) throw new Error('Uraian wajib diisi.');
+    var nom = toNum_(obj.Nominal); if (nom <= 0) throw new Error('Nominal harus lebih dari 0.');
+    var data = { Tanggal: tgl, Jenis: jenis, Kategori: kat, Uraian: ur, Nominal: nom };
+    if (obj.ID) {
+      var ex = byId_(readAll_(SH.KAS), obj.ID); if (!ex) throw new Error('Data kas tidak ditemukan.');
+      if (ex.SumberReferensi) throw new Error('Entri ini berasal dari iuran warga. Ubah melalui menu Verifikasi/Pembayaran.');
+      data.DicatatOleh = s.nama;
+      update_(SH.KAS, ex._row, data);
+      log_(s.nama, 'UBAH_KAS', jenis + ' ' + rp_(nom) + ' - ' + ur);
+      return ok_({ ID: ex.ID }, 'Transaksi kas diperbarui.');
+    }
+    data.ID = genId_('KAS'); data.SumberReferensi = ''; data.DicatatOleh = s.nama;
+    insert_(SH.KAS, data);
+    log_(s.nama, 'TAMBAH_KAS', jenis + ' ' + rp_(nom) + ' - ' + ur);
+    return ok_({ ID: data.ID }, 'Transaksi kas dicatat.');
+  });
+}
+
+function apiDeleteKas(token, id) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    var k = byId_(readAll_(SH.KAS), id); if (!k) throw new Error('Data kas tidak ditemukan.');
+    if (k.SumberReferensi) throw new Error('Entri ini berasal dari iuran warga. Hapus melalui menu Pembayaran.');
+    removeRow_(SH.KAS, k._row);
+    log_(s.nama, 'HAPUS_KAS', k.Jenis + ' ' + rp_(k.Nominal) + ' - ' + k.Uraian);
+    return ok_(null, 'Transaksi kas dihapus.');
+  });
+}
+
+/** Informasi keuangan untuk warga (dan pengurus): tanpa data pribadi. */
+function apiGetKeuanganPublik(token) {
+  return run_(token, ALL_ROLES, false, function () {
+    var kas = readAll_(SH.KAS).sort(function (a, b) { return String(a.Tanggal).localeCompare(String(b.Tanggal)) || a._row - b._row; });
+    var sum = kasSummary_(kas), tarif = readAll_(SH.TARIF);
+    var rows = kas.slice().reverse().slice(0, 150).map(function (k) {
+      return { Tanggal: k.Tanggal, Jenis: k.Jenis, Kategori: k.Kategori, Nominal: k.Nominal,
+               Uraian: k.SumberReferensi ? 'Iuran warga - ' + String(k.Kategori).replace(/^Iuran /, '') : k.Uraian };
+    });
+    return ok_({ saldo: sum.saldo, totalMasuk: sum.totalMasuk, totalKeluar: sum.totalKeluar, bulanIni: { masuk: sum.bulanMasuk, keluar: sum.bulanKeluar },
+                 series: sum.series, rows: rows, tarif: tarif.filter(function (t) { return t.Status === 'Aktif'; }).map(function (t) { return strip_(t, []); }) });
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  PEMBAYARAN IURAN
+// ----------------------------------------------------------------------------
+function resolveAlamat_(s, alamat) {
+  if (s.type === 'warga') return s.alamat;
+  var a = clean_(alamat); if (!a) throw new Error('Alamat rumah wajib dipilih.');
+  return a;
+}
+
+function apiGetFormBayar(token, alamat) {
+  return run_(token, ALL_ROLES, false, function (s) {
+    var r = findRumah_(resolveAlamat_(s, alamat));
+    if (!r) throw new Error('Rumah tidak ditemukan.');
+    var st = settings_(), tarif = readAll_(SH.TARIF), pays = readAll_(SH.PEMBAYARAN);
+    var jenis = jenisAktif_(tarif).map(function (j) { return { jenis: j, nominal: tarifFor_(tarif, j, r.KategoriIuran || 'Umum') }; })
+      .filter(function (x) { return x.nominal > 0; });
+    var terpakai = {};
+    pays.forEach(function (p) {
+      if (p.AlamatRumah !== r.Alamat || p.Status === 'Ditolak') return;
+      if (!terpakai[p.JenisIuran]) terpakai[p.JenisIuran] = [];
+      terpakai[p.JenisIuran].push({ periode: p.Periode, status: p.Status });
+    });
+    return ok_({ alamat: r.Alamat, statusHunian: r.StatusHunian, kategori: r.KategoriIuran || 'Umum', jenis: jenis, terpakai: terpakai,
+                 mulaiIuran: startPeriode_(st), tahunSekarang: new Date().getFullYear(), maksMB: APP.MAX_FILE_BYTES / 1048576,
+                 rekening: { bank: st.RekeningBank, nomor: st.RekeningNomor, atasNama: st.RekeningAtasNama } });
+  });
+}
+
+function getFolder_(name, settingKey) {
+  if (settingKey) {
+    var id = settings_()[settingKey];
+    if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  }
+  var it = DriveApp.getFoldersByName(name), f = it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  if (settingKey) setSetting_(settingKey, f.getId());
+  return f;
+}
+
+function saveBukti_(p, kode, alamat) {
+  var mime = clean_(p.mimeType).toLowerCase();
+  var ext = { 'image/jpeg': '.jpg', 'image/png': '.png', 'application/pdf': '.pdf' }[mime];
+  if (!ext) throw new Error('Tipe file tidak didukung. Gunakan JPG, PNG, atau PDF.');
+  var b64 = String(p.base64 || '').replace(/^data:[^;]+;base64,/, '');
+  if (!b64) throw new Error('File bukti kosong.');
+  if (Math.floor(b64.length * 3 / 4) > APP.MAX_FILE_BYTES) throw new Error('Ukuran file bukti maksimal 2 MB.');
+  var name = kode + '_' + alamat.replace(/[^A-Z0-9]/gi, '-') + ext;
+  var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, name);
+  var file = getFolder_(APP.FOLDER_BUKTI, 'FolderBuktiId').createFile(blob);
+  return file.getUrl();
+}
+
+function createPayments_(s, alamat, p, auto) {
+  p = p || {};
+  var rumah = findRumah_(alamat); if (!rumah) throw new Error('Rumah tidak ditemukan.');
+  var jenis = clean_(p.jenis); if (!jenis) throw new Error('Pilih jenis iuran.');
+  var tarif = readAll_(SH.TARIF);
+  var nominal = tarifFor_(tarif, jenis, rumah.KategoriIuran || 'Umum');
+  if (!nominal) throw new Error('Tarif iuran "' + jenis + '" belum diatur.');
+  var seen = {}, periode = [];
+  (Array.isArray(p.periode) ? p.periode : []).forEach(function (x) { x = clean_(x); if (!seen[x]) { seen[x] = 1; periode.push(x); } });
+  if (!periode.length) throw new Error('Pilih minimal satu bulan.');
+  if (periode.length > 24) throw new Error('Maksimal 24 bulan dalam satu pembayaran.');
+  var maxYear = new Date().getFullYear() + 2;
+  periode.forEach(function (x) {
+    if (!isPeriode_(x)) throw new Error('Periode tidak valid: ' + x);
+    if (Number(x.slice(0, 4)) > maxYear || Number(x.slice(0, 4)) < 2000) throw new Error('Periode di luar rentang: ' + x);
+  });
+  var tgl = clean_(p.tanggalBayar) || today_(); if (!isDate_(tgl)) throw new Error('Tanggal bayar tidak valid.');
+  var metode = clean_(p.metode) || 'Transfer';
+  var idx = payIndex_(readAll_(SH.PEMBAYARAN));
+  var dup = periode.filter(function (x) { return idx[rumah.Alamat + '|' + jenis + '|' + x]; });
+  if (dup.length) throw new Error('Periode berikut sudah dibayar atau sedang menunggu verifikasi: ' + dup.map(periodeLabel_).join(', '));
+  var kode = genKode_(), url = '';
+  if (p.base64) url = saveBukti_(p, kode, rumah.Alamat);
+  else if (!auto) throw new Error('Bukti pembayaran wajib diunggah.');
+  periode.sort();
+  periode.forEach(function (per) {
+    var row = { ID: genId_('PAY'), AlamatRumah: rumah.Alamat, JenisIuran: jenis, Periode: per, Nominal: nominal, TanggalBayar: tgl, MetodeBayar: metode,
+                BuktiURL: url, KodeTransaksi: kode, Status: auto ? 'Terverifikasi' : 'Menunggu Verifikasi',
+                CatatanVerifikator: auto ? clean_(p.catatan) : '', DiverifikasiOleh: auto ? s.nama : '', TanggalVerifikasi: auto ? nowStr_() : '' };
+    insert_(SH.PEMBAYARAN, row);
+    if (auto) addKasFromPayment_(row, s.nama);
+  });
+  log_(s.nama, auto ? 'CATAT_BAYAR' : 'UPLOAD_BAYAR', rumah.Alamat + ' ' + jenis + ' ' + periode.join(',') + ' ' + rp_(nominal * periode.length));
+  return { kode: kode, jumlahBulan: periode.length, total: nominal * periode.length, status: auto ? 'Terverifikasi' : 'Menunggu Verifikasi' };
+}
+
+/** WARGA: upload pembayaran (multi bulan). payload: {jenis, periode:["2026-01",...], tanggalBayar, metode, mimeType, base64} */
+function apiUploadPembayaran(token, payload) {
+  return run_(token, ['Warga'], true, function (s) {
+    var r = createPayments_(s, s.alamat, payload, false);
+    return ok_(r, 'Pembayaran ' + r.jumlahBulan + ' bulan (' + rp_(r.total) + ') berhasil dikirim dan menunggu verifikasi pengurus.');
+  });
+}
+
+/** PENGURUS: catat pembayaran langsung (tunai/lainnya), otomatis terverifikasi. payload sama + alamat, catatan */
+function apiCatatPembayaranManual(token, payload) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    var r = createPayments_(s, (payload || {}).alamat, payload, true);
+    return ok_(r, 'Pembayaran ' + r.jumlahBulan + ' bulan (' + rp_(r.total) + ') dicatat dan masuk Buku Kas.');
+  });
+}
+
+function apiListPembayaran(token, f) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    f = f || {};
+    var q = clean_(f.q).toLowerCase(), rows = readAll_(SH.PEMBAYARAN).filter(function (p) {
+      if (f.status && p.Status !== f.status) return false;
+      if (f.tahun && String(p.Periode).slice(0, 4) !== String(f.tahun)) return false;
+      if (f.alamat && p.AlamatRumah !== f.alamat) return false;
+      return true;
+    });
+    var g = groupPay_(rows).filter(function (x) { return !q || (x.alamat + ' ' + x.jenis + ' ' + x.kode).toLowerCase().indexOf(q) >= 0; });
+    g.sort(function (a, b) { return String(b.tanggalBayar).localeCompare(String(a.tanggalBayar)) || String(b.kode).localeCompare(String(a.kode)); });
+    return ok_(g);
+  });
+}
+
+function apiVerifikasiTransaksi(token, kode, aksi, catatan) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    aksi = clean_(aksi); catatan = clean_(catatan);
+    if (aksi !== 'terima' && aksi !== 'tolak') throw new Error('Aksi tidak valid.');
+    if (aksi === 'tolak' && !catatan) throw new Error('Isi alasan penolakan.');
+    var rows = readAll_(SH.PEMBAYARAN).filter(function (p) { return p.KodeTransaksi === kode && p.Status === 'Menunggu Verifikasi'; });
+    if (!rows.length) throw new Error('Transaksi tidak ditemukan atau sudah diproses.');
+    var refs = {};
+    readAll_(SH.KAS).forEach(function (k) { if (k.SumberReferensi) refs[k.SumberReferensi] = 1; });
+    rows.forEach(function (r) {
+      update_(SH.PEMBAYARAN, r._row, { Status: aksi === 'terima' ? 'Terverifikasi' : 'Ditolak', CatatanVerifikator: catatan, DiverifikasiOleh: s.nama, TanggalVerifikasi: nowStr_() });
+      if (aksi === 'terima' && !refs[r.ID]) addKasFromPayment_(r, s.nama);
+    });
+    log_(s.nama, aksi === 'terima' ? 'TERIMA_BAYAR' : 'TOLAK_BAYAR', kode + ' ' + rows[0].AlamatRumah);
+    return ok_(null, aksi === 'terima' ? 'Pembayaran diterima dan dicatat ke Buku Kas.' : 'Pembayaran ditolak.');
+  });
+}
+
+function apiHapusPembayaran(token, kode) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    var rows = readAll_(SH.PEMBAYARAN).filter(function (p) { return p.KodeTransaksi === kode; });
+    if (!rows.length) throw new Error('Transaksi tidak ditemukan.');
+    var ids = {}, url = rows[0].BuktiURL;
+    rows.forEach(function (r) { ids[r.ID] = 1; });
+    readAll_(SH.KAS).filter(function (k) { return ids[k.SumberReferensi]; }).sort(function (a, b) { return b._row - a._row; })
+      .forEach(function (k) { removeRow_(SH.KAS, k._row); });
+    rows.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { removeRow_(SH.PEMBAYARAN, r._row); });
+    var m = url ? String(url).match(/[-\w]{25,}/) : null;
+    if (m) { try { DriveApp.getFileById(m[0]).setTrashed(true); } catch (e) {} }
+    log_(s.nama, 'HAPUS_BAYAR', kode + ' ' + rows[0].AlamatRumah);
+    return ok_(null, 'Transaksi pembayaran dihapus beserta entri kasnya.');
+  });
+}
+
+/** Ambil bukti bayar sebagai data URL (tanpa membuka akses publik file Drive). */
+function apiGetBukti(token, kode) {
+  return run_(token, ALL_ROLES, false, function (s) {
+    var rows = readAll_(SH.PEMBAYARAN).filter(function (p) { return p.KodeTransaksi === kode; });
+    if (!rows.length) throw new Error('Transaksi tidak ditemukan.');
+    if (s.type === 'warga' && rows[0].AlamatRumah !== s.alamat) throw new Error('Anda tidak berhak melihat bukti ini.');
+    var m = rows[0].BuktiURL ? String(rows[0].BuktiURL).match(/[-\w]{25,}/) : null;
+    if (!m) throw new Error('Transaksi ini tidak memiliki bukti.');
+    var blob = DriveApp.getFileById(m[0]).getBlob();
+    return ok_({ mime: blob.getContentType(), nama: blob.getName(), dataUrl: 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes()) });
+  });
+}
+
+/** Riwayat iuran per rumah (warga: rumahnya sendiri; pengurus: parameter alamat). */
+function apiGetRiwayatIuran(token, tahun, alamat) {
+  return run_(token, ALL_ROLES, false, function (s) {
+    var r = findRumah_(resolveAlamat_(s, alamat));
+    if (!r) throw new Error('Rumah tidak ditemukan.');
+    var st = settings_(), tarif = readAll_(SH.TARIF), pays = readAll_(SH.PEMBAYARAN).filter(function (p) { return p.AlamatRumah === r.Alamat; });
+    var th = Number(tahun) || new Date().getFullYear(), start = startPeriode_(st), nowP = periodeNow_(), jenis = jenisAktif_(tarif);
+    pays.forEach(function (p) { if (jenis.indexOf(p.JenisIuran) < 0) jenis.push(p.JenisIuran); });
+    var idx = payIndex_(pays), grid = {};
+    jenis.forEach(function (j) {
+      grid[j] = {};
+      for (var m = 1; m <= 12; m++) {
+        var mm = ('0' + m).slice(-2), per = th + '-' + mm, stt = idx[r.Alamat + '|' + j + '|' + per];
+        var v = stt === 'Terverifikasi' ? 'lunas' : stt ? 'menunggu' : per < start ? 'na' : per > nowP ? 'akan' : 'belum';
+        grid[j][mm] = v;
+      }
+    });
+    var tg = tunggakanRumah_(r, idx, tarif, start, nowP), tn = 0;
+    tg.forEach(function (i) { tn += i.subtotal; });
+    var trx = groupPay_(pays).sort(function (a, b) { return String(b.tanggalBayar).localeCompare(String(a.tanggalBayar)); });
+    return ok_({ alamat: r.Alamat, statusHunian: r.StatusHunian, tahun: th, jenis: jenis, grid: grid, transaksi: trx, tunggakan: tg, totalTunggakan: tn });
+  });
+}
+
+/** Matriks rumah x 12 bulan untuk satu jenis iuran. */
+function apiGetMatriks(token, tahun, jenis) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    var st = settings_(), tarif = readAll_(SH.TARIF), th = Number(tahun) || new Date().getFullYear();
+    var daftarJenis = jenisAktif_(tarif);
+    jenis = clean_(jenis) || daftarJenis[0] || '';
+    var idx = payIndex_(readAll_(SH.PEMBAYARAN)), start = startPeriode_(st), nowP = periodeNow_();
+    var rows = readAll_(SH.RUMAH).sort(function (a, b) { return natCmp_(a.Alamat, b.Alamat); }).map(function (r) {
+      var bulan = {};
+      for (var m = 1; m <= 12; m++) {
+        var mm = ('0' + m).slice(-2), per = th + '-' + mm, stt = idx[r.Alamat + '|' + jenis + '|' + per];
+        bulan[mm] = stt === 'Terverifikasi' ? 'lunas' : stt ? 'menunggu' : per < start ? 'na' : per > nowP ? 'akan' : 'belum';
+      }
+      return { alamat: r.Alamat, statusHunian: r.StatusHunian, kepala: r.NamaKepalaKeluarga || r.NamaPenghuni || r.NamaPemilik, bulan: bulan };
+    });
+    return ok_({ tahun: th, jenis: jenis, daftarJenis: daftarJenis, rows: rows });
+  });
+}
+
+/** Rekap tunggakan semua rumah + teks pengingat WhatsApp. */
+function apiGetTunggakan(token) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    var st = settings_(), tarif = readAll_(SH.TARIF), idx = payIndex_(readAll_(SH.PEMBAYARAN)), start = startPeriode_(st), nowP = periodeNow_();
+    var list = [], grand = 0;
+    readAll_(SH.RUMAH).sort(function (a, b) { return natCmp_(a.Alamat, b.Alamat); }).forEach(function (r) {
+      var items = tunggakanRumah_(r, idx, tarif, start, nowP);
+      if (!items.length) return;
+      var total = 0, bulan = 0;
+      items.forEach(function (i) { total += i.subtotal; bulan += i.jumlah; });
+      grand += total;
+      var kepala = r.NamaKepalaKeluarga || r.NamaPenghuni || r.NamaPemilik || 'Warga';
+      var rincian = items.map(function (i) { return '- ' + i.jenis + ': ' + i.periode.map(periodeLabel_).join(', ') + ' (' + rp_(i.subtotal) + ')'; }).join('\n');
+      var pesan = 'Assalamu\'alaikum Bapak/Ibu ' + kepala + ', kami pengurus ' + st.NamaRT + ' mengingatkan iuran rumah ' + r.Alamat +
+                  ' yang belum tercatat:\n' + rincian + '\nTotal: ' + rp_(total) + '.\nPembayaran dapat melalui ' + st.RekeningBank + ' ' + st.RekeningNomor +
+                  ' a.n. ' + st.RekeningAtasNama + ', lalu unggah bukti di aplikasi ' + st.NamaAplikasi + '. Abaikan bila sudah membayar. Terima kasih.';
+      list.push({ alamat: r.Alamat, statusHunian: r.StatusHunian, kepala: kepala, noHP: r.NoHP, items: items, totalBulan: bulan, totalNominal: total, pesan: pesan });
+    });
+    return ok_({ rows: list, totalRumah: list.length, totalNominal: grand, sampaiPeriode: nowP });
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  TARIF
+// ----------------------------------------------------------------------------
+function apiListTarif(token) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    var rows = readAll_(SH.TARIF).sort(function (a, b) { return natCmp_(a.JenisIuran, b.JenisIuran) || natCmp_(a.KategoriIuran, b.KategoriIuran); });
+    var kat = {}; kat['Umum'] = 1;
+    rows.forEach(function (t) { kat[t.KategoriIuran] = 1; });
+    return ok_({ rows: pickAll_(rows), kategori: Object.keys(kat) });
+  });
+}
+
+function apiSaveTarif(token, obj) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    obj = obj || {};
+    var jenis = clean_(obj.JenisIuran); if (!jenis) throw new Error('Jenis iuran wajib diisi.');
+    var kat = clean_(obj.KategoriIuran) || 'Umum';
+    var nom = toNum_(obj.Nominal); if (nom <= 0) throw new Error('Nominal harus lebih dari 0.');
+    var stt = clean_(obj.Status) || 'Aktif'; if (stt !== 'Aktif' && stt !== 'Nonaktif') throw new Error('Status tidak valid.');
+    var rows = readAll_(SH.TARIF);
+    if (rows.some(function (t) { return t.JenisIuran.toLowerCase() === jenis.toLowerCase() && t.KategoriIuran.toLowerCase() === kat.toLowerCase() && t.ID !== obj.ID; }))
+      throw new Error('Tarif untuk jenis dan kategori tersebut sudah ada.');
+    var data = { JenisIuran: jenis, KategoriIuran: kat, Nominal: nom, Status: stt };
+    if (obj.ID) {
+      var ex = byId_(rows, obj.ID); if (!ex) throw new Error('Tarif tidak ditemukan.');
+      update_(SH.TARIF, ex._row, data);
+      log_(s.nama, 'UBAH_TARIF', jenis + '/' + kat + ' ' + rp_(nom));
+      return ok_(null, 'Tarif diperbarui.');
+    }
+    data.ID = genId_('TRF'); insert_(SH.TARIF, data);
+    log_(s.nama, 'TAMBAH_TARIF', jenis + '/' + kat + ' ' + rp_(nom));
+    return ok_(null, 'Tarif ditambahkan.');
+  });
+}
+
+function apiDeleteTarif(token, id) {
+  return run_(token, KEU_ROLES, true, function (s) {
+    var t = byId_(readAll_(SH.TARIF), id); if (!t) throw new Error('Tarif tidak ditemukan.');
+    removeRow_(SH.TARIF, t._row);
+    log_(s.nama, 'HAPUS_TARIF', t.JenisIuran + '/' + t.KategoriIuran);
+    return ok_(null, 'Tarif dihapus. Riwayat pembayaran lama tidak berubah.');
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  AGENDA
+// ----------------------------------------------------------------------------
+function apiListAgenda(token, f) {
+  return run_(token, ALL_ROLES, false, function () {
+    f = f || {};
+    var map = { akan: 'Akan Datang', selesai: 'Selesai', batal: 'Dibatalkan' }, want = map[f.status] || '';
+    var q = clean_(f.q).toLowerCase();
+    var rows = readAll_(SH.AGENDA).map(agendaView_).filter(function (a) {
+      if (want && a.StatusTampil !== want) return false;
+      if (q && (a.Judul + ' ' + a.Lokasi + ' ' + a.Deskripsi).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    rows.sort(function (a, b) {
+      var c = (a.Tanggal + (a.Waktu || '')).localeCompare(b.Tanggal + (b.Waktu || ''));
+      return want === 'Akan Datang' ? c : -c;
+    });
+    return ok_(rows);
+  });
+}
+
+function apiSaveAgenda(token, obj) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    obj = obj || {};
+    var judul = clean_(obj.Judul); if (!judul) throw new Error('Judul agenda wajib diisi.');
+    var tgl = clean_(obj.Tanggal); if (!isDate_(tgl)) throw new Error('Tanggal tidak valid.');
+    var wkt = clean_(obj.Waktu); if (wkt && !isTime_(wkt)) throw new Error('Waktu tidak valid (jj:mm).');
+    var stt = clean_(obj.Status) || 'Akan Datang'; if (!inArr_(STATUS_AGENDA, stt)) throw new Error('Status agenda tidak valid.');
+    var data = { Judul: judul, Tanggal: tgl, Waktu: wkt, Lokasi: clean_(obj.Lokasi), Deskripsi: clean_(obj.Deskripsi), Status: stt };
+    if (obj.ID) {
+      var ex = byId_(readAll_(SH.AGENDA), obj.ID); if (!ex) throw new Error('Agenda tidak ditemukan.');
+      update_(SH.AGENDA, ex._row, data); log_(s.nama, 'UBAH_AGENDA', judul);
+      return ok_(null, 'Agenda diperbarui.');
+    }
+    data.ID = genId_('AGD'); data.DibuatOleh = s.nama; insert_(SH.AGENDA, data);
+    log_(s.nama, 'TAMBAH_AGENDA', judul);
+    return ok_(null, 'Agenda ditambahkan.');
+  });
+}
+
+function apiDeleteAgenda(token, id) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    var a = byId_(readAll_(SH.AGENDA), id); if (!a) throw new Error('Agenda tidak ditemukan.');
+    removeRow_(SH.AGENDA, a._row); log_(s.nama, 'HAPUS_AGENDA', a.Judul);
+    return ok_(null, 'Agenda dihapus.');
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  INFORMASI WARGA
+// ----------------------------------------------------------------------------
+function apiListInfo(token, f) {
+  return run_(token, ALL_ROLES, false, function (s) {
+    f = f || {};
+    var q = clean_(f.q).toLowerCase();
+    var rows = readAll_(SH.INFO).filter(function (i) {
+      if (s.type === 'warga' && i.Status !== 'Publish') return false;
+      if (f.status && i.Status !== f.status) return false;
+      if (f.kategori && i.Kategori !== f.kategori) return false;
+      if (q && (i.Judul + ' ' + i.Isi).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function (a, b) { return String(b.TanggalTerbit).localeCompare(String(a.TanggalTerbit)); });
+    return ok_(rows.map(infoView_));
+  });
+}
+
+function apiSaveInfo(token, obj) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    obj = obj || {};
+    var judul = clean_(obj.Judul); if (!judul) throw new Error('Judul wajib diisi.');
+    var isi = clean_(obj.Isi); if (!isi) throw new Error('Isi informasi wajib diisi.');
+    var kat = clean_(obj.Kategori) || 'Pengumuman'; if (!inArr_(KAT_INFO, kat)) throw new Error('Kategori tidak valid.');
+    var tgl = clean_(obj.TanggalTerbit) || today_(); if (!isDate_(tgl)) throw new Error('Tanggal terbit tidak valid.');
+    var stt = clean_(obj.Status) || 'Publish'; if (stt !== 'Publish' && stt !== 'Draft') throw new Error('Status tidak valid.');
+    var data = { Judul: judul, Isi: isi, Kategori: kat, TanggalTerbit: tgl, Status: stt };
+    if (obj.ID) {
+      var ex = byId_(readAll_(SH.INFO), obj.ID); if (!ex) throw new Error('Informasi tidak ditemukan.');
+      update_(SH.INFO, ex._row, data); log_(s.nama, 'UBAH_INFO', judul);
+      return ok_(null, 'Informasi diperbarui.');
+    }
+    data.ID = genId_('INF'); data.DibuatOleh = s.nama; insert_(SH.INFO, data);
+    log_(s.nama, 'TAMBAH_INFO', judul);
+    return ok_(null, 'Informasi ditambahkan.');
+  });
+}
+
+function apiDeleteInfo(token, id) {
+  return run_(token, DATA_ROLES, true, function (s) {
+    var i = byId_(readAll_(SH.INFO), id); if (!i) throw new Error('Informasi tidak ditemukan.');
+    removeRow_(SH.INFO, i._row); log_(s.nama, 'HAPUS_INFO', i.Judul);
+    return ok_(null, 'Informasi dihapus.');
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  KONTROL PANEL ADMIN
+// ----------------------------------------------------------------------------
+function apiListPengurus(token) {
+  return run_(token, ADMIN_ROLES, false, function () {
+    return ok_(pickAll_(readAll_(SH.PENGURUS), ['PasswordHash']));
+  });
+}
+
+function apiSavePengurus(token, obj) {
+  return run_(token, ADMIN_ROLES, true, function (s) {
+    obj = obj || {};
+    var nama = clean_(obj.Nama); if (!nama) throw new Error('Nama wajib diisi.');
+    var user = clean_(obj.Username).toLowerCase();
+    if (!/^[a-z0-9._-]{3,30}$/.test(user)) throw new Error('Username 3-30 karakter (huruf kecil, angka, titik, strip, garis bawah).');
+    var role = clean_(obj.Role); if (!inArr_(ROLES, role)) throw new Error('Role tidak valid.');
+    var stt = clean_(obj.Status) || 'Aktif'; if (stt !== 'Aktif' && stt !== 'Nonaktif') throw new Error('Status tidak valid.');
+    var pw = String(obj.Password || '');
+    var list = readAll_(SH.PENGURUS);
+    if (list.some(function (p) { return String(p.Username).toLowerCase() === user && p.ID !== obj.ID; })) throw new Error('Username sudah dipakai.');
+    var data = { Nama: nama, Username: user, Jabatan: clean_(obj.Jabatan) || role, Role: role, Status: stt };
+    if (obj.ID) {
+      var ex = byId_(list, obj.ID); if (!ex) throw new Error('Akun tidak ditemukan.');
+      var adminLain = list.filter(function (p) { return p.Role === 'Admin' && p.Status === 'Aktif' && p.ID !== obj.ID; }).length;
+      if (adminLain === 0 && !(role === 'Admin' && stt === 'Aktif')) throw new Error('Minimal harus ada satu akun Admin yang aktif.');
+      if (obj.ID === s.id && stt !== 'Aktif') throw new Error('Anda tidak dapat menonaktifkan akun sendiri.');
+      if (pw) { if (pw.length < 6) throw new Error('Password minimal 6 karakter.'); data.PasswordHash = makePw_(pw); }
+      update_(SH.PENGURUS, ex._row, data);
+      log_(s.nama, 'UBAH_PENGURUS', user);
+      return ok_(null, 'Akun pengurus diperbarui.');
+    }
+    if (pw.length < 6) throw new Error('Password minimal 6 karakter.');
+    data.ID = genId_('PGR'); data.PasswordHash = makePw_(pw); data.DibuatPada = nowStr_();
+    insert_(SH.PENGURUS, data);
+    log_(s.nama, 'TAMBAH_PENGURUS', user);
+    return ok_(null, 'Akun pengurus ditambahkan.');
+  });
+}
+
+function apiResetPassword(token, id, passwordBaru) {
+  return run_(token, ADMIN_ROLES, true, function (s) {
+    var p = byId_(readAll_(SH.PENGURUS), id); if (!p) throw new Error('Akun tidak ditemukan.');
+    passwordBaru = String(passwordBaru || '');
+    if (passwordBaru.length < 6) throw new Error('Password minimal 6 karakter.');
+    update_(SH.PENGURUS, p._row, { PasswordHash: makePw_(passwordBaru) });
+    clearFail_('P' + String(p.Username).toLowerCase());
+    log_(s.nama, 'RESET_PASSWORD', p.Username);
+    return ok_(null, 'Password ' + p.Username + ' berhasil direset.');
+  });
+}
+
+function apiUbahPasswordSendiri(token, lama, baru) {
+  return run_(token, PENGURUS_ROLES, true, function (s) {
+    var p = byId_(readAll_(SH.PENGURUS), s.id); if (!p) throw new Error('Akun tidak ditemukan.');
+    if (!checkPw_(String(lama || ''), p.PasswordHash)) throw new Error('Password lama salah.');
+    baru = String(baru || '');
+    if (baru.length < 6) throw new Error('Password baru minimal 6 karakter.');
+    if (baru === lama) throw new Error('Password baru harus berbeda dari password lama.');
+    update_(SH.PENGURUS, p._row, { PasswordHash: makePw_(baru) });
+    log_(s.nama, 'UBAH_PASSWORD', p.Username);
+    return ok_(null, 'Password berhasil diubah.');
+  });
+}
+
+function apiGetPengaturan(token) {
+  return run_(token, PENGURUS_ROLES, false, function () {
+    var st = settings_(), o = {};
+    EDITABLE_SETTINGS.forEach(function (k) { o[k] = st[k]; });
+    return ok_(o);
+  });
+}
+
+function apiSavePengaturan(token, obj) {
+  return run_(token, ADMIN_ROLES, true, function (s) {
+    obj = obj || {};
+    EDITABLE_SETTINGS.forEach(function (k) {
+      if (!Object.prototype.hasOwnProperty.call(obj, k)) return;
+      var v = clean_(obj[k]);
+      if (k === 'PinWargaAktif' && v !== 'YA' && v !== 'TIDAK') throw new Error('PinWargaAktif harus YA atau TIDAK.');
+      if (k === 'MulaiIuran' && !isPeriode_(v)) throw new Error('Mulai iuran harus berformat yyyy-mm.');
+      if ((k === 'NamaAplikasi' || k === 'NamaRT') && !v) throw new Error('Nama aplikasi/RT wajib diisi.');
+      setSetting_(k, v);
+    });
+    log_(s.nama, 'UBAH_PENGATURAN', Object.keys(obj).join(','));
+    return ok_(null, 'Pengaturan disimpan.');
+  });
+}
+
+function apiBackup(token) {
+  return run_(token, ADMIN_ROLES, false, function (s) {
+    var file = DriveApp.getFileById(ss_().getId());
+    var copy = file.makeCopy('Backup ' + APP.NAME + ' ' + fmtDate_(new Date(), 'yyyy-MM-dd HHmm'), getFolder_(APP.FOLDER_BACKUP, null));
+    log_(s.nama, 'BACKUP', copy.getName());
+    return ok_({ nama: copy.getName(), url: copy.getUrl() }, 'Backup berhasil dibuat di Google Drive.');
+  });
+}
+
+function apiListLog(token, limit) {
+  return run_(token, ADMIN_ROLES, false, function () {
+    var n = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+    var rows = readAll_(SH.LOG);
+    return ok_(pickAll_(rows.slice(-n).reverse()));
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  SETUP DATABASE (aman dijalankan ulang)
+// ----------------------------------------------------------------------------
+function ensureSheet_(name) {
+  var ss = ss_(), sh = ss.getSheetByName(name) || ss.insertSheet(name), cols = COLS[name];
+  if (sh.getLastRow() === 0 || String(sh.getRange(1, 1).getValue()) === '') {
+    sh.getRange(1, 1, 1, cols.length).setValues([cols])
+      .setFontWeight('bold').setBackground('#1e6f5c').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    // format teks agar tanggal/periode tidak diubah Sheets menjadi tipe Date
+    cols.forEach(function (h, i) {
+      if (!NUM_COLS[h]) sh.getRange(2, i + 1, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('@');
+    });
+  } else {
+    var cur = sh.getRange(1, 1, 1, cols.length).getValues()[0].join('|');
+    if (cur !== cols.join('|')) Logger.log('PERINGATAN: header sheet "' + name + '" berbeda dari definisi. Periksa kolom.');
+  }
+  return sh;
+}
+function isEmptySheet_(name) { return sheet_(name).getLastRow() < 2; }
+
+function setupDatabase() {
+  Object.keys(COLS).forEach(ensureSheet_);
+  var def = ss_().getSheetByName('Sheet1');
+  if (def && def.getLastRow() === 0 && ss_().getSheets().length > 1) { try { ss_().deleteSheet(def); } catch (e) {} }
+
+  // Pengaturan (per kunci, tidak menimpa)
+  var ada = {};
+  readAll_(SH.SETTING).forEach(function (r) { ada[r.Kunci] = 1; });
+  Object.keys(DEFAULT_SETTINGS).forEach(function (k) { if (!ada[k]) insert_(SH.SETTING, { Kunci: k, Nilai: DEFAULT_SETTINGS[k] }); });
+
+  // Admin default
+  if (isEmptySheet_(SH.PENGURUS)) {
+    insert_(SH.PENGURUS, { ID: genId_('PGR'), Nama: 'Administrator', Username: 'admin', PasswordHash: makePw_('admin123'), Jabatan: 'Administrator', Role: 'Admin', Status: 'Aktif', DibuatPada: nowStr_() });
+  }
+
+  // Tarif contoh
+  if (isEmptySheet_(SH.TARIF)) {
+    insert_(SH.TARIF, { ID: genId_('TRF'), JenisIuran: 'Keamanan', KategoriIuran: 'Umum', Nominal: 30000, Status: 'Aktif' });
+    insert_(SH.TARIF, { ID: genId_('TRF'), JenisIuran: 'Kebersihan', KategoriIuran: 'Umum', Nominal: 20000, Status: 'Aktif' });
+  }
+
+  // Rumah + warga contoh (skenario A4/1, A4/2, A4/3)
+  if (isEmptySheet_(SH.RUMAH) && isEmptySheet_(SH.WARGA)) {
+    var rumah = [
+      { Alamat: 'A4/1', StatusHunian: 'Dihuni Pemilik', NamaPemilik: 'Bapak Budi', NamaPenghuni: 'Bapak Budi', NoHP: '081200000001', Keterangan: 'Dihuni oleh pemilik' },
+      { Alamat: 'A4/2', StatusHunian: 'Dikontrak', NamaPemilik: '', NamaPenghuni: 'Bapak Anto', NoHP: '081200000002', Keterangan: 'Dihuni oleh pengontrak (Pak Anto)' },
+      { Alamat: 'A4/3', StatusHunian: 'Kosong', NamaPemilik: 'Bapak Joni', NamaPenghuni: '', NoHP: '081200000003', Keterangan: 'Pemilik dinas luar kota, rumah tidak ditinggali. Tetap membayar iuran.' }
+    ];
+    rumah.forEach(function (r) {
+      var p = r.Alamat.split('/');
+      insert_(SH.RUMAH, { ID: genId_('RMH'), Alamat: r.Alamat, Blok: p[0], Nomor: p[1], StatusHunian: r.StatusHunian, NamaPemilik: r.NamaPemilik, NamaPenghuni: r.NamaPenghuni,
+                          NamaKepalaKeluarga: '', JumlahJiwa: 0, NoHP: r.NoHP, KategoriIuran: 'Umum', Keterangan: r.Keterangan, PINHash: '' });
+    });
+    var w = [
+      ['A4/1', 'Bapak Budi', '3275010101800001', 'Kepala Keluarga', 'Laki-laki', 'Bekasi', '1980-01-01', 'Karyawan Swasta', 'Tinggal'],
+      ['A4/1', 'Ibu Budi', '3275014202820002', 'Istri', 'Perempuan', 'Bekasi', '1982-02-02', 'Ibu Rumah Tangga', 'Tinggal'],
+      ['A4/1', 'Ana', '3275014303080003', 'Anak', 'Perempuan', 'Bekasi', '2008-03-03', 'Pelajar', 'Tinggal'],
+      ['A4/1', 'Ani', '3275014404110004', 'Anak', 'Perempuan', 'Bekasi', '2011-04-04', 'Pelajar', 'Tinggal'],
+      ['A4/2', 'Bapak Anto', '3275010505780005', 'Kepala Keluarga', 'Laki-laki', 'Jakarta', '1978-05-05', 'Wiraswasta', 'Tinggal'],
+      ['A4/2', 'Ibu Anto', '3275014606800006', 'Istri', 'Perempuan', 'Jakarta', '1980-06-06', 'Ibu Rumah Tangga', 'Tinggal'],
+      ['A4/2', 'Kenzo', '3275010707120007', 'Anak', 'Laki-laki', 'Bekasi', '2012-07-07', 'Pelajar', 'Tinggal'],
+      ['A4/3', 'Bapak Joni', '3275010808750008', 'Kepala Keluarga', 'Laki-laki', 'Bandung', '1975-08-08', 'PNS (dinas luar kota)', 'Tidak Tinggal'],
+      ['A4/3', 'Ibu Joni', '3275014909780009', 'Istri', 'Perempuan', 'Bandung', '1978-09-09', 'Ibu Rumah Tangga', 'Tidak Tinggal'],
+      ['A4/3', 'Dika', '3275011010050010', 'Anak', 'Laki-laki', 'Bekasi', '2005-10-10', 'Mahasiswa', 'Tidak Tinggal'],
+      ['A4/3', 'Dina', '3275015111080011', 'Anak', 'Perempuan', 'Bekasi', '2008-11-11', 'Pelajar', 'Tidak Tinggal'],
+      ['A4/3', 'Dimas', '3275011212110012', 'Anak', 'Laki-laki', 'Bekasi', '2011-12-12', 'Pelajar', 'Tidak Tinggal']
+    ];
+    w.forEach(function (x) {
+      insert_(SH.WARGA, { ID: genId_('WRG'), AlamatRumah: x[0], NamaLengkap: x[1], NIK: x[2], HubunganKeluarga: x[3], JenisKelamin: x[4], TempatLahir: x[5],
+                          TanggalLahir: x[6], Pekerjaan: x[7], StatusTinggal: x[8], NoHP: '' });
+    });
+    ['A4/1', 'A4/2', 'A4/3'].forEach(recalcRumah_);
+  }
+
+  if (isEmptySheet_(SH.KAS)) {
+    insert_(SH.KAS, { ID: genId_('KAS'), Tanggal: today_(), Jenis: 'Pemasukan', Kategori: 'Saldo Awal', Uraian: 'Saldo awal kas RT', Nominal: 500000, SumberReferensi: '', DicatatOleh: 'Sistem' });
+  }
+  if (isEmptySheet_(SH.AGENDA)) {
+    var d = new Date(); d.setDate(d.getDate() + 14);
+    insert_(SH.AGENDA, { ID: genId_('AGD'), Judul: 'Kerja Bakti Lingkungan', Tanggal: fmtDate_(d, 'yyyy-MM-dd'), Waktu: '07:00', Lokasi: 'Lapangan RT',
+                         Deskripsi: 'Kerja bakti bersama membersihkan selokan dan lingkungan.', Status: 'Akan Datang', DibuatOleh: 'Sistem' });
+  }
+  if (isEmptySheet_(SH.INFO)) {
+    insert_(SH.INFO, { ID: genId_('INF'), Judul: 'Selamat Datang di RT 07 GO DIGITAL', Isi: 'Aplikasi ini memudahkan warga melihat riwayat iuran, kegiatan, dan informasi keuangan RT. Pembayaran iuran dapat diunggah langsung melalui aplikasi.',
+                       Kategori: 'Pengumuman', TanggalTerbit: today_(), Status: 'Publish', DibuatOleh: 'Sistem' });
+  }
+
+  log_('Sistem', 'SETUP', 'setupDatabase dijalankan');
+  Logger.log('Setup selesai. Login admin: admin / admin123 (segera ganti). Alamat contoh warga: A4/1, A4/2, A4/3.');
+  return 'Setup selesai';
+}
