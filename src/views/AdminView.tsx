@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { dbService } from '../services/spreadsheetDb';
 import { PengurusRow, SpreadsheetDatabase, UserSession } from '../types/database';
 import { Modal } from '../components/Modal';
-import { GoogleSheetsSyncPanel } from '../components/GoogleSheetsSyncPanel';
+import { SpreadsheetConnectionPanel } from '../components/SpreadsheetConnectionPanel';
 import { useToast } from '../components/Toast';
 import {
   Users,
@@ -15,10 +15,6 @@ import {
   Download,
   Upload,
   RefreshCw,
-  Copy,
-  ExternalLink,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -28,7 +24,6 @@ interface AdminViewProps {
 export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'pengurus' | 'settings' | 'spreadsheet' | 'logs'>('pengurus');
-  const [, setRefreshTick] = useState(0);
 
   // TAB 1: PENGURUS STATE
   const pengurusList = dbService.listPengurus();
@@ -544,14 +539,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
       ======================================================== */}
       {activeTab === 'spreadsheet' && (
         <div className="space-y-4">
-          {/* Live Google Sheets & Drive Integration Panel */}
-          <GoogleSheetsSyncPanel
-            session={session}
-            onDatabaseUpdated={() => {
-              setSettingsData(dbService.getSettings());
-              setRefreshTick((t) => t + 1);
-            }}
-          />
+          <SpreadsheetConnectionPanel session={session} />
 
           {/* Action Header Card */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -708,24 +696,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
             </div>
           </div>
 
-          {/* Google Sheets Apps Script Info Box */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-700 space-y-2">
-            <div className="flex items-center gap-2 font-bold text-slate-900">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Koneksi Google Sheets & Backend Apps Script (CODE.gs)</span>
-            </div>
-            <p className="leading-relaxed text-slate-600">
-              Aplikasi ini beroperasi 100% menggunakan arsitektur tabel database Spreadsheet RT 07.
-              Jika Anda ingin memasang langsung ke akun Google Sheets Anda sendiri melalui Google Apps Script:
-            </p>
-            <ol className="list-decimal pl-5 space-y-1 text-slate-600">
-              <li>Buat Google Spreadsheet baru di Google Drive Anda.</li>
-              <li>Buka menu <span className="font-semibold text-slate-800">Extensions &gt; Apps Script</span>.</li>
-              <li>Tempelkan kode <span className="font-semibold text-slate-800">CODE.gs</span> yang sudah disiapkan.</li>
-              <li>Jalankan fungsi <span className="font-mono text-emerald-800 font-semibold">setupDatabase()</span> satu kali.</li>
-              <li>Pilih <span className="font-semibold text-slate-800">Deploy &gt; New deployment &gt; Web app</span> (Execute as: Me, Who has access: Anyone).</li>
-            </ol>
-          </div>
         </div>
       )}
 
