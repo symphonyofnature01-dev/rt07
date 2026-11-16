@@ -59,6 +59,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   GoogleWebAppUrl: '',
   GoogleSpreadsheetId: '',
   GoogleSpreadsheetTitle: '',
+  GoogleSpreadsheetConnectionTitle: '',
+  GoogleSpreadsheetConnectionCheckedAt: '',
 };
 
 export function pad2(n: number): string {
@@ -270,6 +272,24 @@ class SpreadsheetStore {
     } else {
       this.logAction(user, 'PUTUS_GSHEET', 'Memutuskan tautan Google Sheets');
     }
+    this.persist();
+  }
+
+  public setGoogleWebAppUrl(url: string, user: string) {
+    const nextUrl = url.trim();
+    const currentUrl = this.getSettings().GoogleWebAppUrl;
+    this.upsertSettingValue('GoogleWebAppUrl', nextUrl);
+    if (currentUrl !== nextUrl) {
+      this.upsertSettingValue('GoogleSpreadsheetConnectionTitle', '');
+      this.upsertSettingValue('GoogleSpreadsheetConnectionCheckedAt', '');
+    }
+    this.logAction(user, 'ATUR_WEB_APP_GSHEET', nextUrl ? 'Menyimpan URL Web App Apps Script' : 'Menghapus URL Web App Apps Script');
+    this.persist();
+  }
+
+  public setGoogleSpreadsheetConnectionStatus(title: string, checkedAt: string) {
+    this.upsertSettingValue('GoogleSpreadsheetConnectionTitle', title.trim());
+    this.upsertSettingValue('GoogleSpreadsheetConnectionCheckedAt', checkedAt.trim());
     this.persist();
   }
 
