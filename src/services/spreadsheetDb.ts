@@ -34,6 +34,15 @@ import {
   UserPermissions,
   UserSession,
 } from '../types/database';
+import {
+  applyRemotePatch,
+  createDatabasePatch,
+  getRemotePublicInfo,
+  loginRemotePengurus,
+  loginRemoteWarga,
+  logoutRemoteSession,
+  restoreRemoteSession,
+} from './remoteDatabase';
 
 const DB_KEY = 'RT07_GO_DIGITAL_DB_V3';
 const SESSION_KEY = 'RT07_USER_SESSION';
@@ -191,9 +200,17 @@ export function createDefaultDatabase(): SpreadsheetDatabase {
 
 class SpreadsheetStore {
   private db: SpreadsheetDatabase;
+  private legacyDatabase: SpreadsheetDatabase;
+  private remoteSnapshot: SpreadsheetDatabase | null = null;
+  private remoteRevision = 0;
+  private syncQueue: Promise<void> = Promise.resolve();
+  private syncStatus: 'local' | 'syncing' | 'synced' | 'error' = 'local';
+  private syncError = '';
+  private syncListeners = new Set<(state: ReturnType<SpreadsheetStore['getSyncState']>) => void>();
 
   constructor() {
     this.db = this.loadFromStorage();
+    this.legacyDatabase = structuredClone(this.db);
   }
 
   private loadFromStorage(): SpreadsheetDatabase {
@@ -222,7 +239,114 @@ class SpreadsheetStore {
   }
 
   private persist() {
-    this.saveToStorage(this.db);
+    if (!this.remoteSnapshot) {
+      this.saveToStorage(this.db);
+      return;
+    }
+    const snapshot = structuredClone(this.db);
+    this.syncStatus = 'syncing';
+    this.syncError = '';
+    this.notifySync();
+    this.syncQueue = this.syncQueue.then(async () => {
+      const patch = createDatabasePatch(this.remoteSnapshot!, snapshot);
+      if (patch.changes.length) this.remoteRevision = await applyRemotePatch(patch, this.remoteRevision);
+      this.remoteSnapshot = snapshot;
+      this.syncStatus = 'synced';
+      this.notifySync();
+    }).catch((error: unknown) => {
+      this.syncStatus = 'error';
+      this.syncError = error instanceof Error ? error.message : 'Data gagal disimpan ke Spreadsheet.';
+      this.notifySync();
+    });
+  }
+
+  public getSyncState() {
+    return { mode: this.remoteSnapshot ? 'remote' : 'local', status: this.syncStatus, error: this.syncError };
+  }
+
+  public getLegacyMigrationSummary() {
+    const sheets: (keyof SpreadsheetDatabase)[] = ['Rumah', 'Penduduk', 'Keluarga', 'RiwayatHunian', 'Pembayaran', 'BukuKas', 'Tarif', 'Agenda', 'Informasi'];
+    const rows = sheets.reduce((total, sheet) => total + this.legacyDatabase[sheet].length, 0);
+    return { available: Boolean(this.remoteSnapshot) && rows > 0, rows };
+  }
+
+  public async migrateLegacyData(user: string): Promise<void> {
+    if (!this.remoteSnapshot) throw new Error('Database pusat belum aktif.');
+    const sheets: (keyof SpreadsheetDatabase)[] = ['Rumah', 'Penduduk', 'Keluarga', 'RiwayatHunian', 'Pembayaran', 'BukuKas', 'Tarif', 'Agenda', 'Informasi'];
+    const merged = structuredClone(this.db);
+    for (const sheet of sheets) {
+      const existing = new Map((merged[sheet] as unknown as Record<string, unknown>[]).map((row) => [String(row.ID), row]));
+      for (const row of this.legacyDatabase[sheet] as unknown as Record<string, unknown>[]) {
+        const id = String(row.ID || '');
+        if (!id) continue;
+        const current = existing.get(id);
+        if (current && JSON.stringify(current) !== JSON.stringify(row)) {
+          throw new Error(`Migrasi dihentikan: data ${sheet} dengan ID ${id} sudah berbeda di Spreadsheet.`);
+        }
+        if (!current) (merged[sheet] as unknown as Record<string, unknown>[]).push(row);
+      }
+    }
+    this.db = merged;
+    this.logAction(user, 'MIGRASI_LOCAL_STORAGE', 'Memigrasikan data lama browser ke Spreadsheet.');
+    this.persist();
+    await this.waitForRemoteSync();
+    this.legacyDatabase = createDefaultDatabase();
+    localStorage.removeItem(DB_KEY);
+  }
+
+  public subscribeSync(listener: (state: ReturnType<SpreadsheetStore['getSyncState']>) => void) {
+    this.syncListeners.add(listener);
+    listener(this.getSyncState());
+    return () => { this.syncListeners.delete(listener); };
+  }
+
+  private notifySync() {
+    const state = this.getSyncState();
+    this.syncListeners.forEach((listener) => listener(state));
+  }
+
+  public async waitForRemoteSync(): Promise<void> {
+    await this.syncQueue;
+    if (this.syncStatus === 'error') throw new Error(this.syncError);
+  }
+
+  public async getRemotePublicInfo() {
+    return getRemotePublicInfo();
+  }
+
+  private useRemoteDatabase(database: SpreadsheetDatabase, revision: number) {
+    this.db = database;
+    this.remoteSnapshot = structuredClone(database);
+    this.remoteRevision = revision;
+    this.syncStatus = 'synced';
+    this.syncError = '';
+    this.notifySync();
+  }
+
+  public async restoreRemoteSession(): Promise<UserSession | null> {
+    try {
+      const result = await restoreRemoteSession();
+      this.useRemoteDatabase(result.database, result.revision);
+      this.setSession(result.session);
+      return result.session;
+    } catch {
+      this.clearSession();
+      return null;
+    }
+  }
+
+  public async loginRemotePengurus(username: string, password: string): Promise<{ session: UserSession }> {
+    const result = await loginRemotePengurus(username, password);
+    this.useRemoteDatabase(result.database, result.revision);
+    this.setSession(result.session);
+    return { session: result.session };
+  }
+
+  public async loginRemoteWarga(alamat: string, pin: string): Promise<{ session: UserSession }> {
+    const result = await loginRemoteWarga(alamat, pin);
+    this.useRemoteDatabase(result.database, result.revision);
+    this.setSession(result.session);
+    return { session: result.session };
   }
 
   public getRawDatabase(): SpreadsheetDatabase {
@@ -385,6 +509,7 @@ class SpreadsheetStore {
 
   public clearSession() {
     sessionStorage.removeItem(SESSION_KEY);
+    void logoutRemoteSession().catch(() => undefined);
   }
 
   // Auth: Warga Login
@@ -2023,6 +2148,9 @@ class SpreadsheetStore {
     }
 
     p.PasswordHash = makePasswordHash(newPw);
+    if (this.getSettings().WajibGantiPassword === userId) {
+      this.upsertSettingValue('WajibGantiPassword', '');
+    }
     this.logAction(p.Nama, 'UBAH_PASSWORD_SENDIRI', `Akun ${p.Username} berhasil mengubah password.`);
     this.persist();
   }
@@ -2061,6 +2189,9 @@ class SpreadsheetStore {
     if (imported.Pengaturan) this.db.Pengaturan = imported.Pengaturan;
     if (imported.Pengurus && imported.Pengurus.length > 0) this.db.Pengurus = imported.Pengurus;
     if (imported.LogAktivitas) this.db.LogAktivitas = imported.LogAktivitas;
+
+    const admin = this.db.Pengurus.find((account) => account.Role === 'Admin' && account.Status === 'Aktif');
+    if (admin) this.upsertSettingValue('WajibGantiPassword', admin.ID);
 
     this.logAction(user, 'IMPORT_DATABASE', 'Memulihkan database spreadsheet');
     this.persist();

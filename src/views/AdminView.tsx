@@ -24,6 +24,7 @@ interface AdminViewProps {
 export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'pengurus' | 'settings' | 'spreadsheet' | 'logs'>('pengurus');
+  const [, setRevision] = useState(0);
 
   // TAB 1: PENGURUS STATE
   const pengurusList = dbService.listPengurus();
@@ -44,6 +45,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
 
   // TAB 3: SPREADSHEET BROWSER STATE
   const rawDb = dbService.getRawDatabase();
+  const legacyMigration = dbService.getLegacyMigrationSummary();
   const sheetNames: (keyof SpreadsheetDatabase)[] = [
     'Pengurus',
     'Rumah',
@@ -67,11 +69,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   // -------------------------
   // Handlers for Tab 1: Pengurus
   // -------------------------
-  const handleSavePengurusSubmit = (e: React.FormEvent) => {
+  const handleSavePengurusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pengurusModal) return;
     try {
       dbService.savePengurus(pengurusModal, session);
+      await dbService.waitForRemoteSync();
       toast(pengurusModal.ID ? 'Akun pengurus berhasil diperbarui.' : 'Akun pengurus baru berhasil ditambahkan.', 'success');
       setPengurusModal(null);
     } catch (err: unknown) {
@@ -80,11 +83,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
     }
   };
 
-  const handleResetPasswordSubmit = (e: React.FormEvent) => {
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetPwModal) return;
     try {
       dbService.resetPasswordPengurus(resetPwModal.id, resetPwModal.newPw, session.nama);
+      await dbService.waitForRemoteSync();
       toast(`Password untuk ${resetPwModal.username} berhasil direset.`, 'success');
       setResetPwModal(null);
     } catch (err: unknown) {
@@ -96,10 +100,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   // -------------------------
   // Handlers for Tab 2: Settings
   // -------------------------
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       dbService.saveSettings(settingsData, session.nama);
+      await dbService.waitForRemoteSync();
       toast('Pengaturan RT berhasil disimpan.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -143,15 +148,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(reader.result as string);
-        if (!parsed.Rumah || !parsed.Penduduk) {
-          throw new Error('Format berkas JSON tidak sesuai struktur spreadsheet.');
+        const requiredSheets: (keyof SpreadsheetDatabase)[] = ['Rumah', 'Penduduk', 'Keluarga', 'RiwayatHunian', 'Pembayaran', 'BukuKas', 'Tarif', 'Agenda', 'Informasi', 'Pengurus', 'Pengaturan', 'LogAktivitas'];
+        if (!requiredSheets.every((sheet) => Array.isArray(parsed[sheet]))) {
+          throw new Error('Berkas harus merupakan backup database lengkap; impor parsial ditolak agar data Spreadsheet tidak terhapus.');
         }
         if (window.confirm('Pulihkan database dari berkas ini? Seluruh data saat ini akan ditimpa.')) {
           dbService.importSheetJson(parsed, session.nama);
-          toast('Database spreadsheet berhasil dipulihkan dari berkas JSON.', 'success');
+          await dbService.waitForRemoteSync();
+          toast('Database berhasil dipulihkan. Keluar lalu login kembali untuk mengganti password Admin.', 'success');
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -161,14 +168,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
     reader.readAsText(file);
   };
 
-  const handleResetToDefault = () => {
+  const handleResetToDefault = async () => {
     if (
       window.confirm(
         'PERINGATAN: Apakah Anda yakin ingin mengosongkan dan mereset seluruh database ke kondisi awal?'
       )
     ) {
       dbService.resetDatabase();
+      await dbService.waitForRemoteSync();
       toast('Database telah dikosongkan ke kondisi awal.', 'success');
+    }
+  };
+
+  const handleMigrateLegacyData = async () => {
+    if (!window.confirm(`Migrasikan ${legacyMigration.rows} data lama dari browser ke Google Sheets? Data yang sudah ada di Spreadsheet tidak akan ditimpa.`)) return;
+    try {
+      await dbService.migrateLegacyData(session.nama);
+      setRevision((value) => value + 1);
+      toast('Data lama berhasil dimigrasikan ke Google Sheets.', 'success');
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : String(err), 'error');
     }
   };
 
@@ -184,6 +203,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
 
   return (
     <div className="space-y-5">
+      {legacyMigration.available && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className="text-sm text-amber-900 flex-1">Ditemukan {legacyMigration.rows} data lama di browser. Migrasikan sekali agar Google Sheets menjadi sumber data utama.</p>
+          <button type="button" onClick={handleMigrateLegacyData} className="px-4 py-2 rounded-xl bg-amber-700 text-white text-xs font-semibold">Migrasikan Data Lama</button>
+        </div>
+      )}
       {/* Page Header */}
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">

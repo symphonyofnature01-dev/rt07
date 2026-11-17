@@ -8,12 +8,16 @@ interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   session: UserSession;
+  required?: boolean;
+  onChanged?: () => void;
 }
 
 export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   isOpen,
   onClose,
   session,
+  required = false,
+  onChanged,
 }) => {
   const { toast } = useToast();
   const [oldPw, setOldPw] = useState('');
@@ -22,7 +26,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session.id) return;
     if (newPw !== confirmPw) {
@@ -31,11 +35,13 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     }
     try {
       dbService.changeOwnPassword(session.id, oldPw, newPw);
+      await dbService.waitForRemoteSync();
       toast('Password Anda berhasil diubah.', 'success');
       setOldPw('');
       setNewPw('');
       setConfirmPw('');
       onClose();
+      onChanged?.();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast(msg, 'error');
@@ -45,7 +51,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={required ? () => {} : onClose}
       title="Ubah Password Akun Pengurus"
       maxWidth="sm"
     >
@@ -92,13 +98,13 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         </div>
 
         <div className="pt-2 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
-          >
-            Batal
-          </button>
+          {!required && <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+            >
+              Batal
+            </button>}
           <button
             type="submit"
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"

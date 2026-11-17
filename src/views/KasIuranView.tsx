@@ -91,11 +91,12 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
     toast('Buku Kas berhasil diekspor ke CSV.', 'success');
   };
 
-  const handleSaveKasSubmit = (e: React.FormEvent) => {
+  const handleSaveKasSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!kasModal) return;
     try {
       dbService.saveKas(kasModal, session.nama);
+      await dbService.waitForRemoteSync();
       toast(kasModal.ID ? 'Transaksi kas diperbarui.' : 'Transaksi kas berhasil dicatat.', 'success');
       setKasModal(null);
     } catch (err: unknown) {
@@ -104,10 +105,11 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
     }
   };
 
-  const handleDeleteKas = (id: string) => {
+  const handleDeleteKas = async (id: string) => {
     if (!window.confirm('Hapus catatan transaksi kas ini?')) return;
     try {
       dbService.deleteKas(id, session.nama);
+      await dbService.waitForRemoteSync();
       toast('Transaksi kas berhasil dihapus.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -124,10 +126,11 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
     q: verifQuery,
   });
 
-  const handleApprovePayment = (kode: string) => {
+  const handleApprovePayment = async (kode: string) => {
     if (!window.confirm(`Terima pembayaran transaksi ${kode}? Pembayaran akan otomatis dicatat sebagai pemasukan di Buku Kas.`)) return;
     try {
       dbService.verifyPayment(kode, 'terima', '', session.nama);
+      await dbService.waitForRemoteSync();
       toast(`Pembayaran ${kode} telah diterima dan tercatat di Buku Kas.`, 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -135,11 +138,12 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
     }
   };
 
-  const handleRejectPaymentSubmit = (e: React.FormEvent) => {
+  const handleRejectPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectModal) return;
     try {
       dbService.verifyPayment(rejectModal.kode, 'tolak', rejectModal.alasan, session.nama);
+      await dbService.waitForRemoteSync();
       toast(`Pembayaran ${rejectModal.kode} ditolak.`, 'success');
       setRejectModal(null);
     } catch (err: unknown) {
@@ -148,10 +152,11 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
     }
   };
 
-  const handleDeletePayment = (kode: string) => {
+  const handleDeletePayment = async (kode: string) => {
     if (!window.confirm(`Hapus transaksi pembayaran ${kode} beserta seluruh entri kasnya? Tindakan ini tidak dapat dibatalkan.`)) return;
     try {
       dbService.deletePayment(kode, session.nama);
+      await dbService.waitForRemoteSync();
       toast(`Transaksi ${kode} berhasil dihapus.`, 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -181,11 +186,12 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
   // -------------------------
   const tarifData = dbService.listTarif(tarifFilterKategori || undefined);
 
-  const handleSaveTarifSubmit = (e: React.FormEvent) => {
+  const handleSaveTarifSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tarifModal) return;
     try {
       dbService.saveTarif(tarifModal, session.nama);
+      await dbService.waitForRemoteSync();
       toast(tarifModal.ID ? 'Tarif iuran diperbarui.' : 'Tarif iuran baru ditambahkan.', 'success');
       setTarifModal(null);
     } catch (err: unknown) {
@@ -194,10 +200,11 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
     }
   };
 
-  const handleDeleteTarif = (id: string) => {
+  const handleDeleteTarif = async (id: string) => {
     if (!window.confirm('Hapus tarif iuran ini? Riwayat pembayaran yang sudah ada tidak akan berubah.')) return;
     try {
       dbService.deleteTarif(id, session.nama);
+      await dbService.waitForRemoteSync();
       toast('Tarif iuran berhasil dihapus.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { dbService } from './services/spreadsheetDb';
 import { UserSession } from './types/database';
 import { ToastProvider, useToast } from './components/Toast';
@@ -23,7 +23,8 @@ import { ChangePasswordModal } from './components/ChangePasswordModal';
 
 function AppContent() {
   const { toast } = useToast();
-  const [session, setSession] = useState<UserSession | null>(() => dbService.getCurrentSession());
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [currentPage, setCurrentPage] = useState<PageId>('dash');
   const [kasInitialTab, setKasInitialTab] = useState<string>('buku');
   const [targetRiwayatAlamat, setTargetRiwayatAlamat] = useState<string>('');
@@ -32,6 +33,18 @@ function AppContent() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentModalAlamat, setPaymentModalAlamat] = useState<string | undefined>(undefined);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [syncState, setSyncState] = useState(() => dbService.getSyncState());
+
+  useEffect(() => {
+    dbService.restoreRemoteSession()
+      .then((restored) => {
+        setSession(restored);
+        setChangePasswordOpen(Boolean(restored?.mustChangePassword));
+      })
+      .finally(() => setRestoringSession(false));
+  }, []);
+
+  useEffect(() => dbService.subscribeSync(setSyncState), []);
 
   // App settings for header
   const settings = dbService.getSettings();
@@ -40,6 +53,7 @@ function AppContent() {
 
   const handleLoginSuccess = (newSession: UserSession) => {
     setSession(newSession);
+    setChangePasswordOpen(Boolean(newSession.mustChangePassword));
     setCurrentPage('dash');
   };
 
@@ -68,6 +82,10 @@ function AppContent() {
     setPaymentModalAlamat(alamat);
     setPaymentModalOpen(true);
   };
+
+  if (restoringSession) {
+    return <div className="min-h-screen grid place-items-center bg-slate-50 text-sm text-slate-600">Memuat database RT...</div>;
+  }
 
   // If not logged in, render the clean LoginView
   if (!session) {
@@ -159,7 +177,14 @@ function AppContent() {
           isOpen={changePasswordOpen}
           onClose={() => setChangePasswordOpen(false)}
           session={session}
+          required={Boolean(session.mustChangePassword)}
+          onChanged={() => setSession({ ...session, mustChangePassword: false })}
         />
+      )}
+      {session && syncState.mode === 'remote' && syncState.status !== 'synced' && (
+        <div className={`fixed bottom-4 right-4 z-50 max-w-sm rounded-xl px-4 py-3 text-sm shadow-lg ${syncState.status === 'error' ? 'bg-rose-700 text-white' : 'bg-slate-900 text-white'}`}>
+          {syncState.status === 'error' ? `Data belum tersimpan: ${syncState.error}` : 'Menyimpan perubahan ke Google Sheets...'}
+        </div>
       )}
     </div>
   );

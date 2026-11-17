@@ -186,7 +186,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
 
   // Submit Rumah: CRITICAL UX REQUIREMENT!
   // "untuk pengurus, Ketika tambah rumah dan setelah mengisi semua form dan berhasil simpan, ada form untuk data warga"
-  const handleSaveRumahSubmit = (e: React.FormEvent) => {
+  const handleSaveRumahSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rumahModal) return;
 
@@ -195,6 +195,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
       const isNew = res.isNew;
       const rumahId = res.ID;
       const alamat = res.alamat;
+      await dbService.waitForRemoteSync();
 
       setRumahModal(null);
 
@@ -235,10 +236,11 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   };
 
   // Delete Rumah
-  const handleDeleteRumah = (r: RumahRow) => {
+  const handleDeleteRumah = async (r: RumahRow) => {
     if (!window.confirm(`Yakin ingin menghapus rumah ${r.Alamat} beserta seluruh hubungannya?`)) return;
     try {
       dbService.deleteRumah(r.ID, session.nama);
+      await dbService.waitForRemoteSync();
       toast(`Rumah ${r.Alamat} berhasil dihapus.`, 'success');
       if (detailModal?.rumah.ID === r.ID) setDetailModal(null);
     } catch (err: unknown) {
@@ -309,7 +311,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   };
 
   // Submit Warga
-  const handleSaveWargaSubmit = (e: React.FormEvent) => {
+  const handleSaveWargaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wargaModal) return;
 
@@ -335,6 +337,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
         },
         session.nama
       );
+      await dbService.waitForRemoteSync();
 
       toast(`${wargaModal.NamaLengkap} berhasil disimpan ke ${wargaModal.rumahAlamat}!`, 'success');
 
@@ -363,10 +366,11 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   };
 
   // Delete Warga from House
-  const handleDeleteWarga = (rumahId: string, pendudukId: string, nama: string) => {
+  const handleDeleteWarga = async (rumahId: string, pendudukId: string, nama: string) => {
     if (!window.confirm(`Hapus ${nama} dari daftar keluarga rumah ini?`)) return;
     try {
       dbService.deletePendudukDariRumah(rumahId, pendudukId, session.nama);
+      await dbService.waitForRemoteSync();
       toast(`${nama} berhasil dihapus dari rumah.`, 'success');
       refreshDetail(rumahId);
     } catch (err: unknown) {
@@ -376,7 +380,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   };
 
   // Add Riwayat Hunian
-  const handleSaveRiwayatSubmit = (e: React.FormEvent) => {
+  const handleSaveRiwayatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!riwayatModal) return;
 
@@ -393,6 +397,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
         },
         session.nama
       );
+      await dbService.waitForRemoteSync();
 
       toast('Riwayat hunian/kontrak berhasil ditambahkan.', 'success');
       const rId = riwayatModal.IDRumah;
@@ -407,9 +412,10 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   };
 
   // Update Penanggung Jawab Iuran
-  const handleUpdatePenanggungJawab = (rumahId: string, idPenduduk: string, pihak: PihakPembayar) => {
+  const handleUpdatePenanggungJawab = async (rumahId: string, idPenduduk: string, pihak: PihakPembayar) => {
     try {
       dbService.setPenanggungJawabIuran(rumahId, idPenduduk, pihak, session.nama);
+      await dbService.waitForRemoteSync();
       toast(`Penanggung jawab iuran diubah menjadi ${pihak}.`, 'success');
       refreshDetail(rumahId);
     } catch (err: unknown) {
@@ -419,11 +425,12 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   };
 
   // PIN handler
-  const handleSavePinSubmit = (e: React.FormEvent) => {
+  const handleSavePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pinModal) return;
     try {
       dbService.setPinRumah(pinModal.rumah.ID, pinModal.pin, session.nama);
+      await dbService.waitForRemoteSync();
       toast(pinModal.pin ? 'PIN rumah berhasil disimpan.' : 'PIN rumah dihapus.', 'success');
       setPinModal(null);
     } catch (err: unknown) {

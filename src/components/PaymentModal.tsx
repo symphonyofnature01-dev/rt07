@@ -114,7 +114,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAlamat) {
       toast('Alamat rumah wajib dipilih.', 'error');
@@ -155,6 +155,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         session.nama,
         autoVerify
       );
+      await dbService.waitForRemoteSync();
 
       const labelInfo =
         currentTipe === 'Iuran Non Rutin'
