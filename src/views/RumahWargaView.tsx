@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { dbService, formatTanggalIndo } from '../services/spreadsheetDb';
 import {
   HubunganKeluarga,
@@ -15,6 +15,8 @@ import {
 } from '../types/database';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 import {
   Home,
   Plus,
@@ -45,6 +47,8 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   onOpenRiwayat,
 }) => {
   const { toast } = useToast();
+  const confirm = useConfirm();
+  const { isSubmitting, run } = useSubmitLock();
   const perm = session.perm;
 
   // Search & Filters
@@ -67,6 +71,8 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
     KategoriIuran: string;
     Catatan: string;
   } | null>(null);
+  const [isSavingWarga, setIsSavingWarga] = useState(false);
+  const wargaSubmitLock = useRef(false);
 
   // Warga Modal (Add / Edit Penduduk + Relasi Keluarga)
   const [wargaModal, setWargaModal] = useState<{
@@ -188,9 +194,9 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   // "untuk pengurus, Ketika tambah rumah dan setelah mengisi semua form dan berhasil simpan, ada form untuk data warga"
   const handleSaveRumahSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rumahModal) return;
-
-    try {
+    await run(async () => {
+      if (!rumahModal) return;
+      try {
       const res = dbService.saveRumah(rumahModal, session.nama);
       const isNew = res.isNew;
       const rumahId = res.ID;
@@ -229,15 +235,16 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
           setDetailModal(dbService.getRumahDetail(rumahId));
         }
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   // Delete Rumah
   const handleDeleteRumah = async (r: RumahRow) => {
-    if (!window.confirm(`Yakin ingin menghapus rumah ${r.Alamat} beserta seluruh hubungannya?`)) return;
+    if (!await confirm({ title: 'Hapus rumah?', message: `Rumah ${r.Alamat} beserta seluruh hubungan datanya akan dihapus.`, confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deleteRumah(r.ID, session.nama);
       await dbService.waitForRemoteSync();
@@ -313,7 +320,9 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   // Submit Warga
   const handleSaveWargaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wargaModal) return;
+    if (!wargaModal || wargaSubmitLock.current) return;
+    wargaSubmitLock.current = true;
+    setIsSavingWarga(true);
 
     try {
       dbService.savePendudukDanKeluarga(
@@ -339,10 +348,9 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
       );
       await dbService.waitForRemoteSync();
 
-      toast(`${wargaModal.NamaLengkap} berhasil disimpan ke ${wargaModal.rumahAlamat}!`, 'success');
-
       const savedRumahId = wargaModal.rumahId;
       const savedAlamat = wargaModal.rumahAlamat;
+      const savedNama = wargaModal.NamaLengkap;
       const wasFollowUp = wargaModal.isFollowUpFromNewHouse;
 
       setWargaModal(null);
@@ -351,23 +359,27 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
         refreshDetail(savedRumahId);
       }
 
-      // If this was follow-up from adding a new house, ask if they want to add another member
       if (wasFollowUp) {
-        if (window.confirm(`Berhasil menambahkan ${wargaModal.NamaLengkap}. Apakah ingin menambahkan anggota keluarga lainnya untuk ${savedAlamat}?`)) {
+        if (await confirm({ title: 'Data warga berhasil disimpan', message: `${savedNama} sudah ditambahkan ke ${savedAlamat}. Tambahkan anggota keluarga lainnya?`, confirmLabel: 'Tambah anggota', cancelLabel: 'Lihat detail' })) {
           handleOpenAddWarga(savedRumahId, savedAlamat, 'Anggota Keluarga Pemilik');
         } else {
           handleOpenDetail(savedRumahId);
         }
+      } else {
+        toast(`${savedNama} berhasil disimpan ke ${savedAlamat}!`, 'success');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast(msg, 'error');
+    } finally {
+      wargaSubmitLock.current = false;
+      setIsSavingWarga(false);
     }
   };
 
   // Delete Warga from House
   const handleDeleteWarga = async (rumahId: string, pendudukId: string, nama: string) => {
-    if (!window.confirm(`Hapus ${nama} dari daftar keluarga rumah ini?`)) return;
+    if (!await confirm({ title: 'Hapus warga?', message: `${nama} akan dihapus dari daftar keluarga rumah ini.`, confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deletePendudukDariRumah(rumahId, pendudukId, session.nama);
       await dbService.waitForRemoteSync();
@@ -382,9 +394,9 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   // Add Riwayat Hunian
   const handleSaveRiwayatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!riwayatModal) return;
-
-    try {
+    await run(async () => {
+      if (!riwayatModal) return;
+      try {
       dbService.addRiwayatHunian(
         {
           IDRumah: riwayatModal.IDRumah,
@@ -405,10 +417,11 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
       if (detailModal && detailModal.rumah.ID === rId) {
         refreshDetail(rId);
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   // Update Penanggung Jawab Iuran
@@ -427,16 +440,18 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
   // PIN handler
   const handleSavePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pinModal) return;
-    try {
-      dbService.setPinRumah(pinModal.rumah.ID, pinModal.pin, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(pinModal.pin ? 'PIN rumah berhasil disimpan.' : 'PIN rumah dihapus.', 'success');
-      setPinModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!pinModal) return;
+      try {
+        dbService.setPinRumah(pinModal.rumah.ID, pinModal.pin, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(pinModal.pin ? 'PIN rumah berhasil disimpan.' : 'PIN rumah dihapus.', 'success');
+        setPinModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   return (
@@ -1255,9 +1270,10 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
               >
-                Simpan & Lanjut Isi Warga
+                {isSubmitting ? 'Menyimpan...' : 'Simpan & Lanjut Isi Warga'}
               </button>
             </div>
           </form>
@@ -1270,7 +1286,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
       {wargaModal && (
         <Modal
           isOpen={Boolean(wargaModal)}
-          onClose={() => setWargaModal(null)}
+          onClose={() => { if (!isSavingWarga) setWargaModal(null); }}
           title={`Isi Data Warga untuk ${wargaModal.rumahAlamat}`}
           maxWidth="lg"
         >
@@ -1461,15 +1477,17 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
               <button
                 type="button"
                 onClick={() => setWargaModal(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+                disabled={isSavingWarga}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
               >
                 Batal
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                disabled={isSavingWarga}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
               >
-                Simpan Data Warga
+                {isSavingWarga ? 'Menyimpan...' : 'Simpan Data Warga'}
               </button>
             </div>
           </form>
@@ -1581,9 +1599,10 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Simpan Riwayat
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Riwayat'}
               </button>
             </div>
           </form>
@@ -1631,9 +1650,10 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Simpan PIN
+                {isSubmitting ? 'Menyimpan...' : 'Simpan PIN'}
               </button>
             </div>
           </form>

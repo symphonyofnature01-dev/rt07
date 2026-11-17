@@ -3,6 +3,8 @@ import { dbService, formatRupiah, formatTanggalIndo, periodeLabel, pad2, MS } fr
 import { KasRow, KategoriIuranUtama, TarifRow, UserSession } from '../types/database';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 import {
   Coins,
   CheckCircle2,
@@ -35,6 +37,8 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
   onOpenCatatBayarManual,
 }) => {
   const { toast } = useToast();
+  const confirm = useConfirm();
+  const { isSubmitting, run } = useSubmitLock();
   const perm = session.perm;
 
   const [activeTab, setActiveTab] = useState<'buku' | 'verif' | 'matriks' | 'tunggak' | 'tarif'>(
@@ -93,20 +97,22 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
 
   const handleSaveKasSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!kasModal) return;
-    try {
-      dbService.saveKas(kasModal, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(kasModal.ID ? 'Transaksi kas diperbarui.' : 'Transaksi kas berhasil dicatat.', 'success');
-      setKasModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!kasModal) return;
+      try {
+        dbService.saveKas(kasModal, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(kasModal.ID ? 'Transaksi kas diperbarui.' : 'Transaksi kas berhasil dicatat.', 'success');
+        setKasModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   const handleDeleteKas = async (id: string) => {
-    if (!window.confirm('Hapus catatan transaksi kas ini?')) return;
+    if (!await confirm({ title: 'Hapus transaksi kas?', message: 'Catatan transaksi kas ini akan dihapus.', confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deleteKas(id, session.nama);
       await dbService.waitForRemoteSync();
@@ -127,7 +133,7 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
   });
 
   const handleApprovePayment = async (kode: string) => {
-    if (!window.confirm(`Terima pembayaran transaksi ${kode}? Pembayaran akan otomatis dicatat sebagai pemasukan di Buku Kas.`)) return;
+    if (!await confirm({ title: 'Terima pembayaran?', message: `Pembayaran ${kode} akan diterima dan otomatis dicatat sebagai pemasukan di Buku Kas.`, confirmLabel: 'Terima' })) return;
     try {
       dbService.verifyPayment(kode, 'terima', '', session.nama);
       await dbService.waitForRemoteSync();
@@ -140,20 +146,22 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
 
   const handleRejectPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rejectModal) return;
-    try {
-      dbService.verifyPayment(rejectModal.kode, 'tolak', rejectModal.alasan, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(`Pembayaran ${rejectModal.kode} ditolak.`, 'success');
-      setRejectModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!rejectModal) return;
+      try {
+        dbService.verifyPayment(rejectModal.kode, 'tolak', rejectModal.alasan, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(`Pembayaran ${rejectModal.kode} ditolak.`, 'success');
+        setRejectModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   const handleDeletePayment = async (kode: string) => {
-    if (!window.confirm(`Hapus transaksi pembayaran ${kode} beserta seluruh entri kasnya? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!await confirm({ title: 'Hapus pembayaran?', message: `Pembayaran ${kode} beserta seluruh entri kasnya akan dihapus dan tidak dapat dibatalkan.`, confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deletePayment(kode, session.nama);
       await dbService.waitForRemoteSync();
@@ -188,20 +196,22 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
 
   const handleSaveTarifSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tarifModal) return;
-    try {
-      dbService.saveTarif(tarifModal, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(tarifModal.ID ? 'Tarif iuran diperbarui.' : 'Tarif iuran baru ditambahkan.', 'success');
-      setTarifModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!tarifModal) return;
+      try {
+        dbService.saveTarif(tarifModal, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(tarifModal.ID ? 'Tarif iuran diperbarui.' : 'Tarif iuran baru ditambahkan.', 'success');
+        setTarifModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   const handleDeleteTarif = async (id: string) => {
-    if (!window.confirm('Hapus tarif iuran ini? Riwayat pembayaran yang sudah ada tidak akan berubah.')) return;
+    if (!await confirm({ title: 'Hapus tarif?', message: 'Tarif iuran ini akan dihapus. Riwayat pembayaran yang sudah ada tidak berubah.', confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deleteTarif(id, session.nama);
       await dbService.waitForRemoteSync();
@@ -1346,9 +1356,10 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Simpan Transaksi
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
               </button>
             </div>
           </form>
@@ -1534,9 +1545,10 @@ export const KasIuranView: React.FC<KasIuranViewProps> = ({
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Simpan Tarif
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Tarif'}
               </button>
             </div>
           </form>

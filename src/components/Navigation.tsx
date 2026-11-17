@@ -89,8 +89,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
       </aside>
 
-      {/* Mobile Bottom Navigation Bar (15% cap compliant) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 py-1 px-2 flex justify-around items-center shadow-lg safe-bottom">
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 grid min-h-16 ${items.length > 5 ? 'grid-cols-6' : 'grid-cols-5'} items-center gap-0.5 border-t border-slate-200/90 bg-white px-1.5 pt-1 shadow-lg pb-[max(0.5rem,env(safe-area-inset-bottom))]`}>
         {items.map((item) => {
           const Icon = item.icon;
           const active = currentPage === item.id;
@@ -99,12 +98,12 @@ export const Navigation: React.FC<NavigationProps> = ({
               key={item.id}
               type="button"
               onClick={() => onNavigate(item.id)}
-              className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-lg text-[10px] font-medium transition-all ${
+              className={`flex min-h-11 min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-1 text-[10px] font-medium transition-all ${
                 active ? 'text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <Icon className={`w-4 h-4 mb-0.5 ${active ? 'text-emerald-600' : 'text-slate-400'}`} />
-              <span className="truncate max-w-[64px]">{item.label}</span>
+              <span className="w-full truncate text-center">{item.label}</span>
             </button>
           );
         })}

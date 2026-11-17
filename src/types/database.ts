@@ -214,6 +214,7 @@ export interface UserSession {
   alamat?: string;
   perm: UserPermissions;
   mustChangePassword?: boolean;
+  sessionVersion?: string;
 }
 
 export interface PublicInfo {

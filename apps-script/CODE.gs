@@ -17,9 +17,10 @@ var SHEET_SCHEMA = {
   Pengaturan: ['Kunci', 'Nilai'], LogAktivitas: ['Waktu', 'User', 'Aksi', 'Detail']
 };
 var NUMERIC_COLUMNS = { Tahun: true, Bulan: true, Nominal: true };
+var TARGET_SPREADSHEET_ID = '186yUJl1TfTVSpk-8kPfrCcPxBad4B1itgsx_0LI0Nrw';
 
 function setupSpreadsheetDatabase() {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var spreadsheet = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', spreadsheet.getId());
   ensureSheets_(spreadsheet);
 }
@@ -36,13 +37,33 @@ function initializeDatabase() {
   }
   var settings = spreadsheet.getSheetByName('Pengaturan');
   if (settings.getLastRow() <= 1) {
-    settings.getRange(2, 1, 11, 2).setValues([
+    settings.getRange(2, 1, 12, 2).setValues([
       ['NamaAplikasi', 'RT 07 GO DIGITAL'], ['NamaRT', 'RT 07'], ['AlamatRT', 'Bintang Metropol'],
       ['PinWargaAktif', 'TIDAK'], ['RekeningBank', ''], ['RekeningNomor', ''], ['RekeningAtasNama', ''],
-      ['MulaiIuran', '2026-01'], ['NominalIuranRutin', '0'], ['NominalIuranNonRutin', '0'], ['WajibGantiPassword', 'PGR-001']
+      ['MulaiIuran', '2026-01'], ['NominalIuranRutin', '0'], ['NominalIuranNonRutin', '0'], ['WajibGantiPassword', 'PGR-001'], ['SesiVersi', '1']
     ]);
   }
   if (initialPassword) console.log('Password awal admin (ganti segera setelah login): ' + initialPassword);
+}
+
+// Recovery only: resets the existing admin account and leaves every other sheet untouched.
+function resetInitialAdminPassword() {
+  var spreadsheet = getSpreadsheet_();
+  var pengurus = spreadsheet.getSheetByName('Pengurus');
+  var values = pengurus.getDataRange().getValues();
+  var adminRow = -1;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === 'PGR-001' && String(values[i][2]) === 'admin') { adminRow = i + 1; break; }
+  }
+  if (adminRow === -1) throw new Error('Akun admin PGR-001 tidak ditemukan.');
+
+  var password = Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+  pengurus.getRange(adminRow, 4).setValue(passwordHash_(password, Utilities.getUuid().replace(/-/g, '')));
+  var settings = spreadsheet.getSheetByName('Pengaturan');
+  setSetting_(settings, 'WajibGantiPassword', 'PGR-001');
+  setSetting_(settings, 'SesiVersi', Utilities.getUuid());
+  incrementRevision_();
+  console.log('Password pemulihan admin (ganti segera setelah login): ' + password);
 }
 
 function setBridgeToken() {
@@ -67,7 +88,7 @@ function doPost(event) {
     if (!event || !event.parameter || event.parameter.token !== PropertiesService.getScriptProperties().getProperty('BRIDGE_TOKEN')) return json_({ ok: false, error: 'Akses database ditolak.' });
     var body = JSON.parse((event.postData && event.postData.contents) || '{}');
     if (body.action === 'read') return json_({ ok: true, database: readDatabase_(), revision: revision_() });
-    if (body.action === 'patch') return json_(applyPatch_(body.changes || [], body.expectedRevision));
+    if (body.action === 'patch') return json_(applyPatch_(body.changes || [], body.expectedRevision, body.sessionVersion));
     return json_({ ok: false, error: 'Aksi database tidak dikenal.' });
   } catch (error) {
     console.error(error);
@@ -125,12 +146,13 @@ function rowKey_(sheetName, row) {
   return String(row.ID || '');
 }
 
-function applyPatch_(changes, expectedRevision) {
+function applyPatch_(changes, expectedRevision, sessionVersion) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     var spreadsheet = getSpreadsheet_();
     ensureSheets_(spreadsheet);
+    if (String(sessionVersion || '') !== sessionVersion_(spreadsheet)) throw new Error('SESSION_EXPIRED: silakan login kembali.');
     if (Number(expectedRevision) !== revision_()) throw new Error('CONFLICT: data telah berubah.');
     changes.forEach(function (change) {
       if (!SHEET_SCHEMA[change.sheet]) throw new Error('Sheet tidak valid.');
@@ -138,6 +160,24 @@ function applyPatch_(changes, expectedRevision) {
     });
     return { ok: true, revision: incrementRevision_() };
   } finally { lock.releaseLock(); }
+}
+
+function sessionVersion_(spreadsheet) {
+  var settings = spreadsheet.getSheetByName('Pengaturan');
+  var values = settings.getDataRange().getDisplayValues();
+  for (var i = 1; i < values.length; i++) if (String(values[i][0]) === 'SesiVersi') return String(values[i][1] || '1');
+  return '1';
+}
+
+function setSetting_(settings, key, value) {
+  var values = settings.getDataRange().getDisplayValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === key) {
+      settings.getRange(i + 1, 2).setValue(value);
+      return;
+    }
+  }
+  settings.appendRow([key, value]);
 }
 
 function applySheetPatch_(sheet, sheetName, change) {

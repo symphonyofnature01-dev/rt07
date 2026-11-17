@@ -3,6 +3,8 @@ import { dbService, formatTanggalIndo, todayStr } from '../services/spreadsheetD
 import { InfoRow, UserSession } from '../types/database';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 import {
   Megaphone,
   Plus,
@@ -19,6 +21,8 @@ interface InformasiViewProps {
 
 export const InformasiView: React.FC<InformasiViewProps> = ({ session }) => {
   const { toast } = useToast();
+  const confirm = useConfirm();
+  const { isSubmitting, run } = useSubmitLock();
   const isWarga = session.type === 'warga';
   const perm = session.perm;
 
@@ -38,20 +42,22 @@ export const InformasiView: React.FC<InformasiViewProps> = ({ session }) => {
 
   const handleSaveInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!infoModal) return;
-    try {
-      dbService.saveInfo(infoModal, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(infoModal.ID ? 'Informasi diperbarui.' : 'Informasi baru berhasil diterbitkan.', 'success');
-      setInfoModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!infoModal) return;
+      try {
+        dbService.saveInfo(infoModal, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(infoModal.ID ? 'Informasi diperbarui.' : 'Informasi baru berhasil diterbitkan.', 'success');
+        setInfoModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   const handleDeleteInfo = async (id: string, judul: string) => {
-    if (!window.confirm(`Hapus informasi "${judul}"?`)) return;
+    if (!await confirm({ title: 'Hapus informasi?', message: `Informasi "${judul}" akan dihapus.`, confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deleteInfo(id, session.nama);
       await dbService.waitForRemoteSync();
@@ -309,9 +315,10 @@ export const InformasiView: React.FC<InformasiViewProps> = ({ session }) => {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Terbitkan Pengumuman
+                {isSubmitting ? 'Menyimpan...' : 'Terbitkan Pengumuman'}
               </button>
             </div>
           </form>
