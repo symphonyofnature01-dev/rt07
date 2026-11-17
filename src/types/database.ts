@@ -45,7 +45,6 @@ export interface RumahRow {
 // TABEL B: PENDUDUK
 export interface PendudukRow {
   ID: string;
-  NIK: string; // 16 digit
   NamaLengkap: string;
   JenisKelamin: JenisKelamin;
   TempatLahir: string;

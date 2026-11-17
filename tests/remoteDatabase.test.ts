@@ -15,7 +15,7 @@ test('creates row-level upserts and deletes without touching unchanged sheets', 
   before.Rumah = [{ ID: 'RMH-1', Blok: 'A', Nomor: '1', Alamat: 'A/1', StatusHunian: 'Kosong', PihakPembayarIuran: 'Pemilik', KategoriIuran: 'Umum', Catatan: '', PINHash: '' }];
   const after = database();
   after.Rumah = [{ ...before.Rumah[0], StatusHunian: 'Dihuni Pemilik' }];
-  after.Penduduk = [{ ID: 'PEN-1', NIK: '1', NamaLengkap: 'Ani', JenisKelamin: 'Perempuan', TempatLahir: '', TanggalLahir: '', NoHP: '', Pekerjaan: '', StatusPenduduk: 'Tetap', StatusData: 'Aktif' }];
+  after.Penduduk = [{ ID: 'PEN-1', NamaLengkap: 'Ani', JenisKelamin: 'Perempuan', TempatLahir: '', TanggalLahir: '', NoHP: '', Pekerjaan: '', StatusPenduduk: 'Tetap', StatusData: 'Aktif' }];
 
   const patch = createDatabasePatch(before, after);
   assert.deepEqual(patch.changes.map((change) => change.sheet), ['Rumah', 'Penduduk']);

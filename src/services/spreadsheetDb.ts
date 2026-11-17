@@ -43,6 +43,7 @@ import {
   logoutRemoteSession,
   restoreRemoteSession,
 } from './remoteDatabase';
+import { removeNikFromDatabase, removeNikFromPenduduk } from './databasePrivacy';
 
 const DB_KEY = 'RT07_GO_DIGITAL_DB_V3';
 const SESSION_KEY = 'RT07_USER_SESSION';
@@ -219,7 +220,9 @@ class SpreadsheetStore {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed.Rumah && parsed.Penduduk && parsed.Keluarga && parsed.RiwayatHunian) {
-          return parsed;
+          const sanitized = removeNikFromDatabase(parsed as SpreadsheetDatabase);
+          this.saveToStorage(sanitized);
+          return sanitized;
         }
       }
     } catch (e) {
@@ -272,11 +275,12 @@ class SpreadsheetStore {
 
   public async migrateLegacyData(user: string): Promise<void> {
     if (!this.remoteSnapshot) throw new Error('Database pusat belum aktif.');
+    const legacy = removeNikFromDatabase(this.legacyDatabase);
     const sheets: (keyof SpreadsheetDatabase)[] = ['Rumah', 'Penduduk', 'Keluarga', 'RiwayatHunian', 'Pembayaran', 'BukuKas', 'Tarif', 'Agenda', 'Informasi'];
     const merged = structuredClone(this.db);
     for (const sheet of sheets) {
       const existing = new Map((merged[sheet] as unknown as Record<string, unknown>[]).map((row) => [String(row.ID), row]));
-      for (const row of this.legacyDatabase[sheet] as unknown as Record<string, unknown>[]) {
+      for (const row of legacy[sheet] as unknown as Record<string, unknown>[]) {
         const id = String(row.ID || '');
         if (!id) continue;
         const current = existing.get(id);
@@ -315,8 +319,8 @@ class SpreadsheetStore {
   }
 
   private useRemoteDatabase(database: SpreadsheetDatabase, revision: number) {
-    this.db = database;
-    this.remoteSnapshot = structuredClone(database);
+    this.db = removeNikFromDatabase(database);
+    this.remoteSnapshot = structuredClone(this.db);
     this.remoteRevision = revision;
     this.syncStatus = 'synced';
     this.syncError = '';
@@ -350,7 +354,7 @@ class SpreadsheetStore {
   }
 
   public getRawDatabase(): SpreadsheetDatabase {
-    return this.db;
+    return removeNikFromDatabase(this.db);
   }
 
   public resetDatabase(): void {
@@ -842,23 +846,13 @@ class SpreadsheetStore {
     const nama = (pendudukData.NamaLengkap || '').trim();
     if (!nama) throw new Error('Nama lengkap penduduk wajib diisi.');
 
-    const nik = (pendudukData.NIK || '').replace(/\D/g, '');
-    if (!/^\d{16}$/.test(nik)) {
-      throw new Error('NIK harus tepat 16 digit angka.');
-    }
-
     let pendudukId = pendudukData.ID;
     if (pendudukId) {
       // Edit existing resident
       const ex = this.db.Penduduk.find((p) => p.ID === pendudukId);
       if (!ex) throw new Error('Penduduk tidak ditemukan.');
 
-      // Check NIK dup
-      const dup = this.db.Penduduk.find((p) => p.NIK === nik && p.ID !== pendudukId);
-      if (dup) throw new Error(`NIK ${nik} sudah terdaftar pada ${dup.NamaLengkap}.`);
-
       ex.NamaLengkap = nama;
-      ex.NIK = nik;
       ex.JenisKelamin = pendudukData.JenisKelamin || 'Laki-laki';
       ex.TempatLahir = pendudukData.TempatLahir || '';
       ex.TanggalLahir = pendudukData.TanggalLahir || '';
@@ -867,28 +861,19 @@ class SpreadsheetStore {
       ex.StatusPenduduk = pendudukData.StatusPenduduk || 'Tetap';
       ex.StatusData = pendudukData.StatusData || 'Aktif';
     } else {
-      // Add new resident (or attach existing if NIK matched)
-      const existingByNik = this.db.Penduduk.find((p) => p.NIK === nik);
-      if (existingByNik) {
-        pendudukId = existingByNik.ID;
-        existingByNik.NamaLengkap = nama;
-        existingByNik.NoHP = pendudukData.NoHP || existingByNik.NoHP;
-      } else {
-        pendudukId = genId('PEN');
-        const newPen: PendudukRow = {
-          ID: pendudukId,
-          NIK: nik,
-          NamaLengkap: nama,
-          JenisKelamin: pendudukData.JenisKelamin || 'Laki-laki',
-          TempatLahir: pendudukData.TempatLahir || '',
-          TanggalLahir: pendudukData.TanggalLahir || '',
-          NoHP: (pendudukData.NoHP || '').replace(/[^\d+]/g, ''),
-          Pekerjaan: pendudukData.Pekerjaan || '',
-          StatusPenduduk: pendudukData.StatusPenduduk || (keluargaData.Peran.includes('Penyewa') ? 'Sementara' : 'Tetap'),
-          StatusData: 'Aktif',
-        };
-        this.db.Penduduk.push(newPen);
-      }
+      pendudukId = genId('PEN');
+      const newPen: PendudukRow = {
+        ID: pendudukId,
+        NamaLengkap: nama,
+        JenisKelamin: pendudukData.JenisKelamin || 'Laki-laki',
+        TempatLahir: pendudukData.TempatLahir || '',
+        TanggalLahir: pendudukData.TanggalLahir || '',
+        NoHP: (pendudukData.NoHP || '').replace(/[^\d+]/g, ''),
+        Pekerjaan: pendudukData.Pekerjaan || '',
+        StatusPenduduk: pendudukData.StatusPenduduk || (keluargaData.Peran.includes('Penyewa') ? 'Sementara' : 'Tetap'),
+        StatusData: 'Aktif',
+      };
+      this.db.Penduduk.push(newPen);
     }
 
     // Now update or create Keluarga link
@@ -2162,7 +2147,7 @@ class SpreadsheetStore {
   public exportSheetCsv(sheetName: keyof SpreadsheetDatabase): string {
     const rows = (this.db[sheetName] || []) as unknown as Record<string, unknown>[];
     if (!rows.length) return '';
-    const headers = Object.keys(rows[0]).filter((k) => k !== 'PINHash' && k !== 'PasswordHash');
+    const headers = Object.keys(rows[0]).filter((k) => k !== 'NIK' && k !== 'PINHash' && k !== 'PasswordHash');
     const escapeCsv = (val: unknown) => {
       const str = String(val ?? '');
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -2178,7 +2163,7 @@ class SpreadsheetStore {
 
   public importSheetJson(imported: Partial<SpreadsheetDatabase>, user: string) {
     if (imported.Rumah) this.db.Rumah = imported.Rumah;
-    if (imported.Penduduk) this.db.Penduduk = imported.Penduduk;
+    if (imported.Penduduk) this.db.Penduduk = removeNikFromPenduduk(imported.Penduduk);
     if (imported.Keluarga) this.db.Keluarga = imported.Keluarga;
     if (imported.RiwayatHunian) this.db.RiwayatHunian = imported.RiwayatHunian;
     if (imported.Tarif) this.db.Tarif = imported.Tarif;
