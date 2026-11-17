@@ -3,6 +3,7 @@ import { dbService } from '../services/spreadsheetDb';
 import { UserSession } from '../types/database';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   onChanged,
 }) => {
   const { toast } = useToast();
+  const { isSubmitting, run } = useSubmitLock();
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -33,19 +35,21 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       toast('Konfirmasi password baru tidak cocok.', 'error');
       return;
     }
-    try {
-      dbService.changeOwnPassword(session.id, oldPw, newPw);
-      await dbService.waitForRemoteSync();
-      toast('Password Anda berhasil diubah.', 'success');
-      setOldPw('');
-      setNewPw('');
-      setConfirmPw('');
-      onClose();
-      onChanged?.();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      try {
+        dbService.changeOwnPassword(session.id!, oldPw, newPw);
+        await dbService.waitForRemoteSync();
+        toast('Password Anda berhasil diubah.', 'success');
+        setOldPw('');
+        setNewPw('');
+        setConfirmPw('');
+        onClose();
+        onChanged?.();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   return (
@@ -107,9 +111,10 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             </button>}
           <button
             type="submit"
+            disabled={isSubmitting}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
           >
-            Simpan Password Baru
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Password Baru'}
           </button>
         </div>
       </form>

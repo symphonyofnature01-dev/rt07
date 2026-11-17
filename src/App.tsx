@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { dbService } from './services/spreadsheetDb';
 import { UserSession } from './types/database';
 import { ToastProvider, useToast } from './components/Toast';
+import { ConfirmProvider } from './components/ConfirmDialog';
 import { Header } from './components/Header';
 import { Navigation, PageId } from './components/Navigation';
 import { LoginView } from './views/LoginView';
@@ -113,7 +114,7 @@ function AppContent() {
         />
 
         {/* Content Viewport */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8">
+        <main className="flex-1 min-w-0 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:p-6 lg:p-8 lg:pb-8">
           {currentPage === 'dash' && (
             <DashboardView
               session={session}
@@ -181,9 +182,9 @@ function AppContent() {
           onChanged={() => setSession({ ...session, mustChangePassword: false })}
         />
       )}
-      {session && syncState.mode === 'remote' && syncState.status !== 'synced' && (
-        <div className={`fixed bottom-4 right-4 z-50 max-w-sm rounded-xl px-4 py-3 text-sm shadow-lg ${syncState.status === 'error' ? 'bg-rose-700 text-white' : 'bg-slate-900 text-white'}`}>
-          {syncState.status === 'error' ? `Data belum tersimpan: ${syncState.error}` : 'Menyimpan perubahan ke Google Sheets...'}
+      {session && syncState.mode === 'remote' && syncState.status === 'error' && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl bg-rose-700 px-4 py-3 text-sm text-white shadow-lg">
+          Data belum tersimpan: {syncState.error}
         </div>
       )}
     </div>
@@ -193,7 +194,9 @@ function AppContent() {
 export default function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <ConfirmProvider>
+        <AppContent />
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

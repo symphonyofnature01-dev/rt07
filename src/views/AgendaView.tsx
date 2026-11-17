@@ -3,6 +3,8 @@ import { dbService, formatTanggalIndo, BULAN, pad2, todayStr } from '../services
 import { AgendaRow, StatusAgenda, UserSession } from '../types/database';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 import {
   CalendarDays,
   Plus,
@@ -23,6 +25,8 @@ interface AgendaViewProps {
 
 export const AgendaView: React.FC<AgendaViewProps> = ({ session }) => {
   const { toast } = useToast();
+  const confirm = useConfirm();
+  const { isSubmitting, run } = useSubmitLock();
   const perm = session.perm;
 
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -42,20 +46,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ session }) => {
 
   const handleSaveAgendaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agendaModal) return;
-    try {
-      dbService.saveAgenda(agendaModal, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(agendaModal.ID ? 'Agenda berhasil diperbarui.' : 'Agenda baru ditambahkan.', 'success');
-      setAgendaModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!agendaModal) return;
+      try {
+        dbService.saveAgenda(agendaModal, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(agendaModal.ID ? 'Agenda berhasil diperbarui.' : 'Agenda baru ditambahkan.', 'success');
+        setAgendaModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   const handleDeleteAgenda = async (id: string, judul: string) => {
-    if (!window.confirm(`Hapus agenda "${judul}"?`)) return;
+    if (!await confirm({ title: 'Hapus agenda?', message: `Agenda "${judul}" akan dihapus.`, confirmLabel: 'Hapus', danger: true })) return;
     try {
       dbService.deleteAgenda(id, session.nama);
       await dbService.waitForRemoteSync();
@@ -453,9 +459,10 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ session }) => {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Simpan Agenda
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Agenda'}
               </button>
             </div>
           </form>

@@ -4,6 +4,8 @@ import { PengurusRow, SpreadsheetDatabase, UserSession } from '../types/database
 import { Modal } from '../components/Modal';
 import { SpreadsheetConnectionPanel } from '../components/SpreadsheetConnectionPanel';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 import {
   Users,
   Settings,
@@ -23,6 +25,8 @@ interface AdminViewProps {
 
 export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   const { toast } = useToast();
+  const confirm = useConfirm();
+  const { isSubmitting, run } = useSubmitLock();
   const [activeTab, setActiveTab] = useState<'pengurus' | 'settings' | 'spreadsheet' | 'logs'>('pengurus');
   const [, setRevision] = useState(0);
 
@@ -71,30 +75,34 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   // -------------------------
   const handleSavePengurusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pengurusModal) return;
-    try {
-      dbService.savePengurus(pengurusModal, session);
-      await dbService.waitForRemoteSync();
-      toast(pengurusModal.ID ? 'Akun pengurus berhasil diperbarui.' : 'Akun pengurus baru berhasil ditambahkan.', 'success');
-      setPengurusModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!pengurusModal) return;
+      try {
+        dbService.savePengurus(pengurusModal, session);
+        await dbService.waitForRemoteSync();
+        toast(pengurusModal.ID ? 'Akun pengurus berhasil diperbarui.' : 'Akun pengurus baru berhasil ditambahkan.', 'success');
+        setPengurusModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetPwModal) return;
-    try {
-      dbService.resetPasswordPengurus(resetPwModal.id, resetPwModal.newPw, session.nama);
-      await dbService.waitForRemoteSync();
-      toast(`Password untuk ${resetPwModal.username} berhasil direset.`, 'success');
-      setResetPwModal(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      if (!resetPwModal) return;
+      try {
+        dbService.resetPasswordPengurus(resetPwModal.id, resetPwModal.newPw, session.nama);
+        await dbService.waitForRemoteSync();
+        toast(`Password untuk ${resetPwModal.username} berhasil direset.`, 'success');
+        setResetPwModal(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   // -------------------------
@@ -102,14 +110,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   // -------------------------
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      dbService.saveSettings(settingsData, session.nama);
-      await dbService.waitForRemoteSync();
-      toast('Pengaturan RT berhasil disimpan.', 'success');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(msg, 'error');
-    }
+    await run(async () => {
+      try {
+        dbService.saveSettings(settingsData, session.nama);
+        await dbService.waitForRemoteSync();
+        toast('Pengaturan RT berhasil disimpan.', 'success');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast(msg, 'error');
+      }
+    });
   };
 
   // -------------------------
@@ -155,11 +165,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
         if (!requiredSheets.every((sheet) => Array.isArray(parsed[sheet]))) {
           throw new Error('Berkas harus merupakan backup database lengkap; impor parsial ditolak agar data Spreadsheet tidak terhapus.');
         }
-        if (window.confirm('Pulihkan database dari berkas ini? Seluruh data saat ini akan ditimpa.')) {
-          dbService.importSheetJson(parsed, session.nama);
-          await dbService.waitForRemoteSync();
-          toast('Database berhasil dipulihkan. Keluar lalu login kembali untuk mengganti password Admin.', 'success');
-        }
+        if (!await confirm({ title: 'Pulihkan database?', message: 'Seluruh data Spreadsheet saat ini akan ditimpa.', confirmLabel: 'Pulihkan', danger: true })) return;
+        dbService.importSheetJson(parsed, session.nama);
+        await dbService.waitForRemoteSync();
+        toast('Database berhasil dipulihkan. Keluar lalu login kembali untuk mengganti password Admin.', 'success');
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         toast(`Gagal impor: ${msg}`, 'error');
@@ -169,19 +178,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
   };
 
   const handleResetToDefault = async () => {
-    if (
-      window.confirm(
-        'PERINGATAN: Apakah Anda yakin ingin mengosongkan dan mereset seluruh database ke kondisi awal?'
-      )
-    ) {
-      dbService.resetDatabase();
-      await dbService.waitForRemoteSync();
-      toast('Database telah dikosongkan ke kondisi awal.', 'success');
-    }
+    if (!await confirm({ title: 'Reset seluruh database?', message: 'Semua data akan dikosongkan dan dikembalikan ke kondisi awal.', confirmLabel: 'Reset database', danger: true })) return;
+    dbService.resetDatabase();
+    await dbService.waitForRemoteSync();
+    toast('Database telah dikosongkan ke kondisi awal.', 'success');
   };
 
   const handleMigrateLegacyData = async () => {
-    if (!window.confirm(`Migrasikan ${legacyMigration.rows} data lama dari browser ke Google Sheets? Data yang sudah ada di Spreadsheet tidak akan ditimpa.`)) return;
+    if (!await confirm({ title: 'Migrasikan data lama?', message: `Migrasikan ${legacyMigration.rows} data lama dari browser ke Google Sheets? Data yang sudah ada tidak akan ditimpa.`, confirmLabel: 'Migrasikan' })) return;
     try {
       await dbService.migrateLegacyData(session.nama);
       setRevision((value) => value + 1);
@@ -551,9 +555,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
           <div className="pt-3 flex justify-end">
             <button
               type="submit"
+              disabled={isSubmitting}
               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer shadow-xs"
             >
-              Simpan Pengaturan
+              {isSubmitting ? 'Menyimpan...' : 'Simpan Pengaturan'}
             </button>
           </div>
         </form>
@@ -886,9 +891,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Simpan Akun
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Akun'}
               </button>
             </div>
           </form>
@@ -929,9 +935,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ session }) => {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Reset Password
+                {isSubmitting ? 'Menyimpan...' : 'Reset Password'}
               </button>
             </div>
           </form>

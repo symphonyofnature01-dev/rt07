@@ -90,6 +90,11 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const session = getSession(req);
       if (!session) return send(res, 401, { error: 'Sesi tidak tersedia. Silakan login kembali.' });
+      const settings = Object.fromEntries(database.Pengaturan.map((row) => [row.Kunci, row.Nilai]));
+      if (session.sessionVersion !== (settings.SesiVersi || '1')) {
+        clearSession(res);
+        return send(res, 401, { error: 'Sesi telah berakhir. Silakan login kembali.' });
+      }
       return send(res, 200, { ok: true, session, database: databaseForSession(database, session), revision: bridge.revision });
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'Metode tidak didukung.' });
@@ -102,7 +107,7 @@ export default async function handler(req, res) {
         return send(res, 401, { error: 'Username atau password salah.' });
       }
       const settings = Object.fromEntries(database.Pengaturan.map((row) => [row.Kunci, row.Nilai]));
-      session = { type: 'pengurus', id: user.ID, nama: user.Nama, username: user.Username, role: user.Role, jabatan: user.Jabatan, perm: permissions(user.Role), mustChangePassword: settings.WajibGantiPassword === user.ID };
+      session = { type: 'pengurus', id: user.ID, nama: user.Nama, username: user.Username, role: user.Role, jabatan: user.Jabatan, perm: permissions(user.Role), mustChangePassword: settings.WajibGantiPassword === user.ID, sessionVersion: settings.SesiVersi || '1' };
     } else if (body.type === 'warga') {
       const alamat = String(body.alamat || '').trim();
       const rumah = database.Rumah.find((row) => row.Alamat === alamat);
@@ -111,7 +116,7 @@ export default async function handler(req, res) {
       if (settings.PinWargaAktif === 'YA' && !verifyPassword(String(body.pin || ''), rumah.PINHash)) {
         return send(res, 401, { error: 'PIN rumah salah.' });
       }
-      session = { type: 'warga', nama: `Warga ${alamat}`, alamat, role: 'Warga', perm: permissions('Warga') };
+      session = { type: 'warga', nama: `Warga ${alamat}`, alamat, role: 'Warga', perm: permissions('Warga'), sessionVersion: settings.SesiVersi || '1' };
     } else {
       return send(res, 400, { error: 'Jenis login tidak valid.' });
     }

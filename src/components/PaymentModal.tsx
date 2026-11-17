@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { dbService, formatRupiah, MS, pad2, todayStr } from '../services/spreadsheetDb';
 import { KategoriIuranUtama, UserSession } from '../types/database';
 import { Modal } from '../components/Modal';
@@ -39,6 +39,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [catatan, setCatatan] = useState<string>('');
   const [filePreview, setFilePreview] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionLock = useRef(false);
 
   useEffect(() => {
     if (defaultAlamat) {
@@ -116,6 +117,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submissionLock.current) return;
     if (!selectedAlamat) {
       toast('Alamat rumah wajib dipilih.', 'error');
       return;
@@ -137,6 +139,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
+    submissionLock.current = true;
     setIsSubmitting(true);
     try {
       const autoVerify = !isWarga; // Pengurus recordings are auto-verified
@@ -174,6 +177,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       const msg = err instanceof Error ? err.message : String(err);
       toast(msg, 'error');
     } finally {
+      submissionLock.current = false;
       setIsSubmitting(false);
     }
   };
