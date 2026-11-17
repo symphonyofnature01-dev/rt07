@@ -213,6 +213,7 @@ export interface UserSession {
   jabatan?: string;
   alamat?: string;
   perm: UserPermissions;
+  mustChangePassword?: boolean;
 }
 
 export interface PublicInfo {

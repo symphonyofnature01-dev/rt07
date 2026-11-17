@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { dbService } from '../services/spreadsheetDb';
 import { UserSession } from '../types/database';
 import { useToast } from '../components/Toast';
@@ -10,7 +10,8 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { toast } = useToast();
-  const publicInfo = dbService.getPublicInfo();
+  const [publicInfo, setPublicInfo] = useState(() => dbService.getPublicInfo());
+  const [loadingDatabase, setLoadingDatabase] = useState(true);
 
   const [activeTab, setActiveTab] = useState<'warga' | 'pengurus'>('warga');
 
@@ -24,7 +25,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState<string>('');
   const [loadingPengurus, setLoadingPengurus] = useState(false);
 
-  const handleWargaLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    dbService.getRemotePublicInfo()
+      .then(setPublicInfo)
+      .catch((error: unknown) => toast(error instanceof Error ? error.message : 'Database pusat tidak dapat diakses.', 'error'))
+      .finally(() => setLoadingDatabase(false));
+  }, [toast]);
+
+  const handleWargaLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAlamat) {
       toast('Silakan pilih alamat rumah Anda.', 'error');
@@ -32,7 +40,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
     setLoadingWarga(true);
     try {
-      const { session } = dbService.loginWarga(selectedAlamat, wargaPin);
+      const { session } = await dbService.loginRemoteWarga(selectedAlamat, wargaPin);
       toast(`Selamat datang di ${publicInfo.namaAplikasi}!`, 'success');
       onLoginSuccess(session);
     } catch (err: unknown) {
@@ -43,7 +51,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handlePengurusLogin = (e: React.FormEvent) => {
+  const handlePengurusLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
       toast('Username dan password wajib diisi.', 'error');
@@ -51,7 +59,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
     setLoadingPengurus(true);
     try {
-      const { session } = dbService.loginPengurus(username, password);
+      const { session } = await dbService.loginRemotePengurus(username, password);
       toast(`Login berhasil sebagai ${session.nama} (${session.role})`, 'success');
       onLoginSuccess(session);
     } catch (err: unknown) {
@@ -60,11 +68,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     } finally {
       setLoadingPengurus(false);
     }
-  };
-
-  const fillPengurusPreset = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
   };
 
   return (
@@ -192,10 +195,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
               <button
                 type="submit"
-                disabled={loadingWarga}
+                disabled={loadingWarga || loadingDatabase}
                 className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
               >
-                {loadingWarga ? 'Memproses...' : 'Masuk Sebagai Warga'}
+                {loadingWarga ? 'Memproses...' : loadingDatabase ? 'Memuat Database...' : 'Masuk Sebagai Warga'}
               </button>
             </form>
           )}
@@ -246,23 +249,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => fillPengurusPreset('admin', 'admin123')}
-                  className="w-full text-left px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition-colors flex items-center justify-between"
-                >
-                  <span className="text-xs font-semibold text-slate-700">Akun Admin Default</span>
-                  <span className="text-[11px] text-slate-500 font-mono">admin / admin123</span>
-                </button>
-              </div>
-
               <button
                 type="submit"
-                disabled={loadingPengurus}
+                disabled={loadingPengurus || loadingDatabase}
                 className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
               >
-                {loadingPengurus ? 'Memverifikasi...' : 'Masuk Sebagai Pengurus'}
+                {loadingPengurus ? 'Memverifikasi...' : loadingDatabase ? 'Memuat Database...' : 'Masuk Sebagai Pengurus'}
               </button>
             </form>
           )}

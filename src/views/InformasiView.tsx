@@ -36,11 +36,12 @@ export const InformasiView: React.FC<InformasiViewProps> = ({ session }) => {
     isWarga
   );
 
-  const handleSaveInfoSubmit = (e: React.FormEvent) => {
+  const handleSaveInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!infoModal) return;
     try {
       dbService.saveInfo(infoModal, session.nama);
+      await dbService.waitForRemoteSync();
       toast(infoModal.ID ? 'Informasi diperbarui.' : 'Informasi baru berhasil diterbitkan.', 'success');
       setInfoModal(null);
     } catch (err: unknown) {
@@ -49,10 +50,11 @@ export const InformasiView: React.FC<InformasiViewProps> = ({ session }) => {
     }
   };
 
-  const handleDeleteInfo = (id: string, judul: string) => {
+  const handleDeleteInfo = async (id: string, judul: string) => {
     if (!window.confirm(`Hapus informasi "${judul}"?`)) return;
     try {
       dbService.deleteInfo(id, session.nama);
+      await dbService.waitForRemoteSync();
       toast('Informasi berhasil dihapus.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

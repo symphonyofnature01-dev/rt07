@@ -139,7 +139,7 @@ export const SpreadsheetConnectionPanel: React.FC<SpreadsheetConnectionPanelProp
       </div>
 
       <p className="text-[11px] text-slate-400">
-        Tempelkan <span className="font-mono">CODE.gs</span>, jalankan <span className="font-mono">setupSpreadsheetConnection</span> sekali, lalu deploy sebagai Web App yang berjalan sebagai pemilik dan dapat diakses tanpa login Google. Gunakan URL deployment yang berakhir dengan <span className="font-mono">/exec</span>.
+        URL ini hanya untuk pemeriksaan kesehatan. Penyimpanan data pusat memakai API Vercel dan rahasia server; jalankan <span className="font-mono">setupSpreadsheetDatabase</span> saat memasang <span className="font-mono">CODE.gs</span> baru.
       </p>
     </section>
   );

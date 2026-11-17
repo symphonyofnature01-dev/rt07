@@ -40,11 +40,12 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ session }) => {
     q: searchQuery,
   });
 
-  const handleSaveAgendaSubmit = (e: React.FormEvent) => {
+  const handleSaveAgendaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agendaModal) return;
     try {
       dbService.saveAgenda(agendaModal, session.nama);
+      await dbService.waitForRemoteSync();
       toast(agendaModal.ID ? 'Agenda berhasil diperbarui.' : 'Agenda baru ditambahkan.', 'success');
       setAgendaModal(null);
     } catch (err: unknown) {
@@ -53,10 +54,11 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ session }) => {
     }
   };
 
-  const handleDeleteAgenda = (id: string, judul: string) => {
+  const handleDeleteAgenda = async (id: string, judul: string) => {
     if (!window.confirm(`Hapus agenda "${judul}"?`)) return;
     try {
       dbService.deleteAgenda(id, session.nama);
+      await dbService.waitForRemoteSync();
       toast('Agenda berhasil dihapus.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
