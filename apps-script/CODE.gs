@@ -5,7 +5,7 @@
  */
 var SHEET_SCHEMA = {
   Rumah: ['ID', 'Blok', 'Nomor', 'Alamat', 'StatusHunian', 'IDPemilik', 'IDPenanggungJawabIuran', 'PihakPembayarIuran', 'KategoriIuran', 'Catatan', 'PINHash'],
-  Penduduk: ['ID', 'NIK', 'NamaLengkap', 'JenisKelamin', 'TempatLahir', 'TanggalLahir', 'NoHP', 'Pekerjaan', 'StatusPenduduk', 'StatusData'],
+  Penduduk: ['ID', 'NamaLengkap', 'JenisKelamin', 'TempatLahir', 'TanggalLahir', 'NoHP', 'Pekerjaan', 'StatusPenduduk', 'StatusData'],
   Keluarga: ['ID', 'IDRumah', 'IDPenduduk', 'IDKepalaKeluarga', 'HubunganKeluarga', 'Peran', 'StatusMenghuni'],
   RiwayatHunian: ['ID', 'IDRumah', 'IDKepalaKeluarga', 'NamaKeluarga', 'JenisHunian', 'TanggalMulai', 'TanggalSelesai', 'StatusHunian', 'Catatan'],
   Pembayaran: ['ID', 'AlamatRumah', 'JenisIuran', 'TipeIuran', 'Periode', 'Tahun', 'Bulan', 'Nominal', 'TanggalBayar', 'MetodeBayar', 'BuktiURL', 'KodeTransaksi', 'Status', 'PihakPembayar', 'CatatanVerifikator', 'DiverifikasiOleh', 'TanggalVerifikasi'],
@@ -112,6 +112,29 @@ function ensureSheets_(spreadsheet) {
   });
 }
 
+// Run once manually after backing up the Spreadsheet. This deletes current NIK values;
+// Google Drive version history and old local backups are outside this script's control.
+function migrateRemoveNikColumn() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var properties = PropertiesService.getScriptProperties();
+    if (properties.getProperty('NIK_COLUMN_REMOVED') === '1') return;
+
+    var sheet = getSpreadsheet_().getSheetByName('Penduduk');
+    if (!sheet || sheet.getLastRow() === 0) {
+      properties.setProperty('NIK_COLUMN_REMOVED', '1');
+      return;
+    }
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    var nikColumn = headers.indexOf('NIK');
+    if (nikColumn !== -1) sheet.deleteColumn(nikColumn + 1);
+    properties.setProperty('NIK_COLUMN_REMOVED', '1');
+    incrementRevision_();
+    console.log('Migrasi NIK selesai. Kolom NIK tidak lagi disimpan di Spreadsheet.');
+  } finally { lock.releaseLock(); }
+}
+
 function getSpreadsheet_() {
   var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
   if (!id) throw new Error('Jalankan setupSpreadsheetDatabase terlebih dahulu.');
@@ -125,6 +148,8 @@ function readDatabase_() {
   Object.keys(SHEET_SCHEMA).forEach(function (name) {
     var sheet = spreadsheet.getSheetByName(name);
     var lastRow = sheet.getLastRow();
+    if (lastRow === 0) { database[name] = []; return; }
+    assertSheetSchema_(sheet, name);
     if (lastRow <= 1) { database[name] = []; return; }
     var values = sheet.getRange(1, 1, lastRow, SHEET_SCHEMA[name].length).getDisplayValues();
     var headers = values[0];
@@ -138,6 +163,16 @@ function readDatabase_() {
     });
   });
   return database;
+}
+
+function assertSheetSchema_(sheet, sheetName) {
+  var headers = SHEET_SCHEMA[sheetName];
+  var actual = sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (actual[i] !== headers[i]) {
+      throw new Error('Struktur sheet ' + sheetName + ' belum sesuai. Jalankan migrateRemoveNikColumn sebelum memakai Web App versi ini.');
+    }
+  }
 }
 
 function rowKey_(sheetName, row) {
@@ -156,7 +191,9 @@ function applyPatch_(changes, expectedRevision, sessionVersion) {
     if (Number(expectedRevision) !== revision_()) throw new Error('CONFLICT: data telah berubah.');
     changes.forEach(function (change) {
       if (!SHEET_SCHEMA[change.sheet]) throw new Error('Sheet tidak valid.');
-      applySheetPatch_(spreadsheet.getSheetByName(change.sheet), change.sheet, change);
+      var sheet = spreadsheet.getSheetByName(change.sheet);
+      assertSheetSchema_(sheet, change.sheet);
+      applySheetPatch_(sheet, change.sheet, change);
     });
     return { ok: true, revision: incrementRevision_() };
   } finally { lock.releaseLock(); }

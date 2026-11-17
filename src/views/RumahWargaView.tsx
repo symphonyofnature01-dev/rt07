@@ -82,7 +82,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
     pendudukId?: string;
     keluargaId?: string;
     // Data Penduduk
-    NIK: string;
     NamaLengkap: string;
     JenisKelamin: JenisKelamin;
     TempatLahir: string;
@@ -217,7 +216,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
           rumahId,
           rumahAlamat: alamat,
           isFollowUpFromNewHouse: true,
-          NIK: '',
           NamaLengkap: '',
           JenisKelamin: 'Laki-laki',
           TempatLahir: '',
@@ -281,7 +279,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
       rumahId,
       rumahAlamat: alamat,
       isFollowUpFromNewHouse: false,
-      NIK: '',
       NamaLengkap: '',
       JenisKelamin: 'Laki-laki',
       TempatLahir: '',
@@ -303,7 +300,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
       isFollowUpFromNewHouse: false,
       pendudukId: anggota.penduduk.ID,
       keluargaId: anggota.keluarga.ID,
-      NIK: anggota.penduduk.NIK,
       NamaLengkap: anggota.penduduk.NamaLengkap,
       JenisKelamin: anggota.penduduk.JenisKelamin,
       TempatLahir: anggota.penduduk.TempatLahir || '',
@@ -329,7 +325,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
         wargaModal.rumahId,
         {
           ID: wargaModal.pendudukId,
-          NIK: wargaModal.NIK,
           NamaLengkap: wargaModal.NamaLengkap,
           JenisKelamin: wargaModal.JenisKelamin,
           TempatLahir: wargaModal.TempatLahir,
@@ -833,7 +828,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
                         <tr>
                           <th className="px-3 py-2">Nama Lengkap</th>
                           <th className="px-3 py-2">Hubungan</th>
-                          <th className="px-3 py-2">NIK</th>
                           <th className="px-3 py-2">Status Menghuni</th>
                           {perm.ubahData && <th className="px-3 py-2 text-right">Aksi</th>}
                         </tr>
@@ -848,7 +842,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
                               </div>
                             </td>
                             <td className="px-3 py-2.5 font-medium text-slate-800">{m.keluarga.HubunganKeluarga}</td>
-                            <td className="px-3 py-2.5 font-mono tabular-nums text-slate-600">{m.penduduk.NIK}</td>
                             <td className="px-3 py-2.5">
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
@@ -882,7 +875,7 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
                         ))}
                         {detailModal.keluargaPemilik.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-3 py-4 text-center text-slate-400">
+                            <td colSpan={perm.ubahData ? 4 : 3} className="px-3 py-4 text-center text-slate-400">
                               Belum ada data keluarga pemilik.
                             </td>
                           </tr>
@@ -917,7 +910,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
                           <tr>
                             <th className="px-3 py-2">Nama Penyewa</th>
                             <th className="px-3 py-2">Hubungan</th>
-                            <th className="px-3 py-2">NIK</th>
                             <th className="px-3 py-2">No. WhatsApp</th>
                             <th className="px-3 py-2">Status Menghuni</th>
                             {perm.ubahData && <th className="px-3 py-2 text-right">Aksi</th>}
@@ -933,7 +925,6 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
                                 </div>
                               </td>
                               <td className="px-3 py-2.5 font-medium text-slate-800">{m.keluarga.HubunganKeluarga}</td>
-                              <td className="px-3 py-2.5 font-mono tabular-nums text-slate-600">{m.penduduk.NIK}</td>
                               <td className="px-3 py-2.5 font-mono text-slate-700">{m.penduduk.NoHP || '-'}</td>
                               <td className="px-3 py-2.5">
                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
@@ -1362,32 +1353,16 @@ export const RumahWargaView: React.FC<RumahWargaViewProps> = ({
               </div>
             </div>
 
-            {/* Nama & NIK */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap *</label>
-                <input
-                  type="text"
-                  required
-                  value={wargaModal.NamaLengkap}
-                  onChange={(e) => setWargaModal({ ...wargaModal, NamaLengkap: e.target.value })}
-                  placeholder="Masukkan nama lengkap"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">NIK (16 Digit Angka) *</label>
-                <input
-                  type="text"
-                  required
-                  maxLength={16}
-                  value={wargaModal.NIK}
-                  onChange={(e) => setWargaModal({ ...wargaModal, NIK: e.target.value.replace(/\D/g, '') })}
-                  placeholder="3275xxxxxxxxxxxx"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap *</label>
+              <input
+                type="text"
+                required
+                value={wargaModal.NamaLengkap}
+                onChange={(e) => setWargaModal({ ...wargaModal, NamaLengkap: e.target.value })}
+                placeholder="Masukkan nama lengkap"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-semibold"
+              />
             </div>
 
             {/* Jenis Kelamin & Status Penduduk */}
